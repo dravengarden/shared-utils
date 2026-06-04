@@ -5,9 +5,9 @@ published per language to each language's own registry.
 
 ## Packages
 
-| Package                             | Registry | Contents                                             |
-| ----------------------------------- | -------- | ---------------------------------------------------- |
-| `@shared-utils/ui` (`packages/ui/`) | JSR      | React + MUI UI primitives. Currently: `DetentSheet`. |
+| Package                             | Registry | Contents                                                                                                                                                                |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@shared-utils/ui` (`packages/ui/`) | JSR      | React + MUI primitives: `DetentSheet`, `BottomSheet`, `SettingsSheet` + `ThemeModeControl`, `NavShell`, `createSharedTheme`, `useThemeMode`. Business- and portal-free. |
 
 Every publishable unit lives under `packages/`, regardless of language — each package self-describes its language via
 its own manifest (`deno.json`, `Cargo.toml`, `pyproject.toml`, …) and publishes to that language's registry (JSR /
@@ -18,6 +18,11 @@ crates.io / PyPI / …). The repo root stays language-agnostic.
 `react`, `@mui/material`, `@emotion/react` are **peer dependencies** — bare specifiers resolved by each consumer's own
 import map, so there is a single React instance (no duplicate-React hook breakage). The kit therefore carries no
 animation libraries (`DetentSheet` is hand-rolled: pointer events + rAF + CSS transitions, dependency-free).
+
+**Consuming in a Nix-built app**: the flake exposes `packages.ui` — a flat TS source tree (every `*.ts`/`*.tsx` plus a
+generated `index.ts` barrel). Take this repo as a flake input and stage it into the app's web build before vite runs:
+`cp ${shared-utils.packages.ui}/. web/src/_shell/` (that dir is gitignored — referenced, never committed). Then
+`import { … } from "./_shell"`.
 
 ## Quality gate
 
