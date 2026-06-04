@@ -20,6 +20,14 @@
 // property is harmless for a standalone app and required when hosted in an
 // iframe, so it is always safe.
 //
+// One opt-in exception: when `surfaceColor` is set, the sheet repaints the
+// standalone status bar via `<meta theme-color>` so the top safe-area strip
+// dims in lockstep with the scrim (and restores on close). That write is NOT a
+// viewport-perturbing mutation (no reflow, no scroll lock, no #root/iframe
+// attribute) and a cross-origin iframe's theme-color never reaches the host's
+// status bar — only the top-level document's does. So it is effective only
+// standalone and an inert no-op when hosted, which keeps the property above.
+//
 // Dependency-free on purpose: this is a shared package, so it must not drag an
 // animation library into every consumer's bundle. The drag follows the finger
 // via one rAF-coalesced style write per frame (no React render); the release
@@ -63,6 +71,36 @@ const SAFE_BOTTOM = "calc(16px + env(safe-area-inset-bottom, 0px))";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
+// Composite an opaque `#rgb` / `#rrggbb` base UNDER black at `alpha` (0..1) →
+// the colour the status bar should show so it visually matches the page scrim
+// (black @ alpha painted over the same base). Returns the input unchanged if it
+// isn't a hex colour, so a non-hex `surfaceColor` degrades to "no dim".
+function dimHex(base: string, alpha: number): string {
+  const hex = base.trim().replace(/^#/u, "");
+  const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+  if (full.length !== 6 || /[^0-9a-f]/iu.test(full)) {
+    return base;
+  }
+  const f = 1 - clamp(alpha, 0, 1);
+  const ch = (i: number): string =>
+    Math.round(Number.parseInt(full.slice(i, i + 2), 16) * f)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${ch(0)}${ch(2)}${ch(4)}`;
+}
+
+// The single document-level write this overlay permits (see header): repaint the
+// standalone status bar. No-op when the meta tag is absent.
+function setStatusBarColor(color: string): void {
+  globalThis.document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
+}
+
+// Scrim opacity for a given translateY — the exact value `paint` writes to the
+// scrim, factored out so the status-bar tint can be kept in lockstep with it.
+function scrimOpacityAt(y: number, closedPx: number): number {
+  return closedPx > 0 ? clamp((closedPx - y) / closedPx, 0, 1) * SCRIM_MAX : 0;
+}
+
 export interface DetentSheetProps {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -76,15 +114,31 @@ export interface DetentSheetProps {
   readonly children: ReactNode;
   /** Optional row pinned to the bottom (e.g. Save / Cancel), safe-area padded. */
   readonly footer?: ReactNode;
+  /** Opaque surface colour (typically the theme's `background.paper`). When set,
+   *  the standalone iOS/Android status bar is dimmed in lockstep with the scrim
+   *  while open and restored on close — so the top safe-area strip stops reading
+   *  as an undimmed band above the dimmed page. Omit to leave the status bar
+   *  untouched (the historical zero-side-effect behaviour). Effective only
+   *  standalone; an inert no-op when hosted in a cross-origin iframe (see
+   *  header). */
+  readonly surfaceColor?: string | undefined;
 }
 
-export function DetentSheet({ open, onClose, ariaLabel, header, children, footer }: DetentSheetProps): ReactNode {
+export function DetentSheet(
+  { open, onClose, ariaLabel, header, children, footer, surfaceColor }: DetentSheetProps,
+): ReactNode {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
   const yRef = useRef(0); // current translateY (px)
   const geomRef = useRef<{ detents: number[]; closedPx: number }>({ detents: [0, 0], closedPx: 0 });
   const dragRef = useRef<{ startPointerY: number; startY: number; samples: { t: number; y: number }[] } | null>(null);
   const rafRef = useRef(0);
+  // Mirror surfaceColor into a ref so `paint` (deps []) can read the latest
+  // without being re-created (which would replay the open animation).
+  const surfaceColorRef = useRef(surfaceColor);
+  useEffect(() => {
+    surfaceColorRef.current = surfaceColor;
+  }, [surfaceColor]);
 
   // Write translateY + scrim opacity straight to the DOM (no React render). The
   // settle rides a CSS transition; an active drag turns it off so the sheet
@@ -100,7 +154,15 @@ export function DetentSheet({ open, onClose, ariaLabel, header, children, footer
     }
     if (scrim) {
       scrim.style.transition = animate ? `opacity ${String(SETTLE_MS)}ms ${SETTLE_EASE}` : "none";
-      scrim.style.opacity = String(closedPx > 0 ? clamp((closedPx - y) / closedPx, 0, 1) * SCRIM_MAX : 0);
+      scrim.style.opacity = String(scrimOpacityAt(y, closedPx));
+    }
+    // Match the status bar to the scrim, but only at settle points: iOS paints
+    // `theme-color` with a hard snap (no animation), so a per-frame write during
+    // the drag would jank. `animate` is true exactly on the settle transitions
+    // (open / snap / dismiss); the bar then steps between detents, not per frame.
+    const surface = surfaceColorRef.current;
+    if (animate && surface !== undefined) {
+      setStatusBarColor(dimHex(surface, scrimOpacityAt(y, closedPx)));
     }
   }, []);
 
@@ -212,6 +274,22 @@ export function DetentSheet({ open, onClose, ariaLabel, header, children, footer
     globalThis.addEventListener("keydown", onKey);
     return () => globalThis.removeEventListener("keydown", onKey);
   }, [open, dismiss]);
+
+  // Status-bar tint that `paint`'s settle-only write can't cover: (1) restore
+  // the undimmed surface when the sheet closes/unmounts (the caller may flip
+  // `open` to false directly, without a dismiss-settle paint); (2) re-tint when
+  // `surfaceColor` changes WHILE open — the settings sheet is exactly where the
+  // theme (hence paper colour) is switched — keeping the bar dimmed at the
+  // current detent across that change.
+  useEffect(() => {
+    if (!open || surfaceColor === undefined) {
+      return;
+    }
+    setStatusBarColor(dimHex(surfaceColor, scrimOpacityAt(yRef.current, geomRef.current.closedPx)));
+    return () => {
+      setStatusBarColor(surfaceColor);
+    };
+  }, [open, surfaceColor]);
 
   // Unmounted when closed; the dismiss runs the settle (open still true) and
   // only then calls onClose, so the slide-out is seen.

@@ -63,6 +63,10 @@ export function BottomSheet({ open, onClose, title, children, actions }: BottomS
       open={open}
       onClose={onClose}
       ariaLabel={typeof title === "string" ? title : undefined}
+      // Dim the standalone status bar in lockstep with the scrim: the sheet's
+      // surface is `background.paper`, so the top safe-area strip matches the
+      // dimmed page instead of staying a bright band. Inert when hosted.
+      surfaceColor={theme.palette.background.paper}
       header={title == null ? <Box sx={{ pb: 0.5 }} /> : (
         <Box
           sx={{
