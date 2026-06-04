@@ -1,0 +1,6 @@
+{
+  "name": "@shared-utils/ui",
+  "version": "0.0.1",
+  "license": "MIT",
+  "exports": "./mod.ts"
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "jsx-a11y",
+    "promise"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "pedantic": "error",
+    "style": "error"
+  },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "settings": {
+    "react": {
+      "version": "19"
+    }
+  },
+  "rules": {
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "func-style": ["error", "declaration", { "allowArrowFunctions": true }],
+    "jsx-max-depth": ["error", { "max": 6 }],
+    "max-lines": ["error", { "max": 500 }],
+    "max-lines-per-function": ["error", { "max": 350 }],
+    "max-statements": ["error", { "max": 50 }],
+
+    "react/react-in-jsx-scope": "off",
+    "unicorn/no-null": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+
+    "no-magic-numbers": "off",
+    "id-length": "off",
+    "no-ternary": "off",
+    "no-inline-comments": "off",
+    "capitalized-comments": "off",
+    "sort-keys": "off",
+    "sort-imports": "off"
+  }
+}
