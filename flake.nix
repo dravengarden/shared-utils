@@ -66,7 +66,11 @@
       #                 project IS the repo root (hermes, theia).
       #   depsHash    — FOD hash of the vendored deno cache. Refresh ONLY when the
       #                 app's lockfiles change: lib.fakeHash → build → copy "got".
-      #   stageShell  — stage the @shared-utils/ui SDK into <webRoot>/src/_shell.
+      #   stageShell  — stage an SDK source tree into <webRoot>/src/_shell.
+      #   shellSrc    — what to stage when stageShell (default: this repo's ui
+      #                 SDK). Override for an app still on a different SDK source
+      #                 (e.g. atlantis/components) so fixing the build footgun
+      #                 stays decoupled from migrating the SDK.
       #   installArgs — args to `deno install` (e.g. "--frozen --allow-scripts").
       #   nodejs      — node for any tool deno's npm interop can't shim.
       buildDenoViteApp =
@@ -76,6 +80,7 @@
         , webRoot ? "web"
         , depsHash
         , stageShell ? true
+        , shellSrc ? uiSrc
         , installArgs ? "--frozen"
         , nodejs ? pkgs.nodejs_24
         }:
@@ -123,9 +128,9 @@
             cp -R ${webDeps} $DENO_DIR
             chmod -R u+w $DENO_DIR
             ${lib.optionalString stageShell ''
-              # Stage the shared @shared-utils/ui SDK into the gitignored _shell.
+              # Stage the shared SDK source into the gitignored _shell seam.
               mkdir -p ${webRoot}/src/_shell
-              cp ${uiSrc}/* ${webRoot}/src/_shell/
+              cp ${shellSrc}/* ${webRoot}/src/_shell/
               chmod -R u+w ${webRoot}/src/_shell
             ''}
             cd ${webRoot}
