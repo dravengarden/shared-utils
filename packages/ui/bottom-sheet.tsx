@@ -36,17 +36,33 @@ export interface BottomSheetProps {
   readonly children: ReactNode;
   /** Optional action row pinned to the bottom (e.g. Save / Cancel). */
   readonly actions?: ReactNode;
+  /**
+   * Desktop/tablet dialog width. Default is a compact ~444px dialog (right for
+   * a handful of rows). Pass `wide` for content-rich surfaces (a palette grid +
+   * font list + reading controls) so the dialog scales with the viewport
+   * instead of staying cramped: ~560px on tablets, ~720px on wide desktops,
+   * still shrinking to fit a narrow tablet. No effect on the mobile sheet.
+   */
+  readonly wide?: boolean;
 }
 
-export function BottomSheet({ open, onClose, title, children, actions }: BottomSheetProps): ReactNode {
+export function BottomSheet({ open, onClose, title, children, actions, wide = false }: BottomSheetProps): ReactNode {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   // Desktop: a centered dialog. A bottom sheet (and its drag handle) only makes
-  // sense on a touch/phone viewport.
+  // sense on a touch/phone viewport. `fullWidth` + a Paper maxWidth cap lets the
+  // dialog fill the viewport up to the cap, so narrow tablets shrink it while
+  // wide screens get the full width — `wide` raises the cap per breakpoint.
   if (!isMobile) {
     return (
-      <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth={false}
+        fullWidth
+        PaperProps={{ sx: { maxWidth: wide ? { sm: 560, lg: 720 } : 444 } }}
+      >
         {title == null ? null : <DialogTitle sx={{ fontWeight: 700 }}>{title}</DialogTitle>}
         <DialogContent>{children}</DialogContent>
         {actions == null

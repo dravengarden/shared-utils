@@ -24,13 +24,16 @@ export interface SettingsSheetProps {
   readonly title?: string;
   /** Settings rows — e.g. a {@link ThemeModeControl}. */
   readonly children: ReactNode;
+  /** Widen the desktop/tablet dialog for content-rich settings (see
+   *  {@link BottomSheet}'s `wide`). No effect on the mobile sheet. */
+  readonly wide?: boolean;
 }
 
 /**
  * The gear + responsive settings surface. Drop it into a top-bar `actions` slot
  * (or any chrome); it owns its own open/close state.
  */
-export function SettingsSheet({ title = "Settings", children }: SettingsSheetProps): ReactNode {
+export function SettingsSheet({ title = "Settings", children, wide = false }: SettingsSheetProps): ReactNode {
   const [open, setOpen] = useState(false);
   const close = (): void => {
     setOpen(false);
@@ -54,7 +57,7 @@ export function SettingsSheet({ title = "Settings", children }: SettingsSheetPro
           on mobile, dialog on desktop) + safe-area padding; we just hand it the
           settings rows. */
       }
-      <BottomSheet open={open} onClose={close} title={title}>
+      <BottomSheet open={open} onClose={close} title={title} wide={wide}>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>{children}</Box>
       </BottomSheet>
     </>
