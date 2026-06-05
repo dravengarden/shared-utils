@@ -1,4 +1,11 @@
-// DetentSheet — a content-sizing momentum bottom sheet for mobile.
+// DetentSheet — a content-sizing momentum sheet for mobile.
+//
+// Anchors to the bottom (slides up) by DEFAULT, or to the top (`anchor="top"`,
+// slides down) for a nav drawer. The geometry, gesture and animation are
+// identical either way — mirrored by a `sign` — so a top sheet gets the same
+// finger-tracking drag, flick-to-dismiss and snap as the bottom one. The grab
+// handle sits on the sheet's INNER edge (top edge for a bottom sheet, bottom
+// edge for a top sheet); the corners round on that same edge.
 //
 // Initial height fits the CONTENT, not the viewport: the sheet is as tall as
 // its rows (capped at MAX_FRACTION so a scrim strip always shows) and opens
@@ -6,7 +13,7 @@
 // no wasted empty space, no janky full-page feel. Only when the content is tall
 // enough to be worth a second stop (> PEEK_ENABLE_FRACTION of the viewport) does
 // the sheet gain the medium "peek" detent below full; below that it has a single
-// content-sized level (flick down to dismiss). "Two levels by default; one level
+// content-sized level (flick to dismiss). "Two levels by default; one level
 // when the content is small."
 //
 // Self-contained overlay: it renders a fixed scrim + sheet INSIDE the caller's
@@ -43,7 +50,7 @@ import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, us
 import { Box } from "@mui/material";
 
 // The sheet sizes to its content but never taller than this fraction of the
-// viewport, so a strip of dimmed page always stays above it (it reads as a
+// viewport, so a strip of dimmed page always stays beyond it (it reads as a
 // sheet, not a full-page modal).
 const MAX_FRACTION = 0.88;
 // The medium "peek" detent, as a fraction of the viewport.
@@ -55,7 +62,7 @@ const PEEK_FRACTION = 0.5;
 const PEEK_ENABLE_FRACTION = 0.66;
 
 // Release velocity (px/ms) projects this far forward to choose the detent; a
-// downward flick faster than this dismisses instead of snapping.
+// flick toward hidden faster than this dismisses instead of snapping.
 const PROJECTION_MS = 110;
 const FLICK_DISMISS = 0.55;
 // Settle duration + easing for snap / dismiss / open. An ease-out curve that
@@ -68,6 +75,7 @@ const SCRIM_MAX = 0.45;
 // plain high z-index is enough; no portal/Modal stacking to coordinate with.
 const Z = 1300;
 const SAFE_BOTTOM = "calc(16px + env(safe-area-inset-bottom, 0px))";
+const SAFE_TOP = "env(safe-area-inset-top, 0px)";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
@@ -97,8 +105,9 @@ function setStatusBarColor(color: string): void {
 
 // Scrim opacity for a given translateY — the exact value `paint` writes to the
 // scrim, factored out so the status-bar tint can be kept in lockstep with it.
+// |y| because the hidden direction is signed (down for a top sheet).
 function scrimOpacityAt(y: number, closedPx: number): number {
-  return closedPx > 0 ? clamp((closedPx - y) / closedPx, 0, 1) * SCRIM_MAX : 0;
+  return closedPx > 0 ? clamp((closedPx - Math.abs(y)) / closedPx, 0, 1) * SCRIM_MAX : 0;
 }
 
 export interface DetentSheetProps {
@@ -107,12 +116,16 @@ export interface DetentSheetProps {
   // `| undefined` (not just `?`) so a caller compiling with
   // exactOptionalPropertyTypes can pass an explicit undefined.
   readonly ariaLabel?: string | undefined;
-  /** The top bar — the drag affordance (a grab handle is prepended). Buttons in
-   *  here should `stopPropagation` on pointerdown so a tap acts, not drags. */
-  readonly header: ReactNode;
-  /** Scrollable body below the header. */
+  /** Which edge the sheet anchors to: "bottom" (slides up, default) or "top"
+   *  (slides down — a nav drawer). */
+  readonly anchor?: "top" | "bottom" | undefined;
+  /** The bar next to the grab handle (the drag affordance). Buttons in here
+   *  should `stopPropagation` on pointerdown so a tap acts, not drags. */
+  readonly header?: ReactNode;
+  /** Scrollable body. */
   readonly children: ReactNode;
-  /** Optional row pinned to the bottom (e.g. Save / Cancel), safe-area padded. */
+  /** Optional row pinned to the bottom (e.g. Save / Cancel), safe-area padded.
+   *  Bottom-anchored sheets only. */
   readonly footer?: ReactNode;
   /** Opaque surface colour (typically the theme's `background.paper`). When set,
    *  the standalone iOS/Android status bar is dimmed in lockstep with the scrim
@@ -125,20 +138,27 @@ export interface DetentSheetProps {
 }
 
 export function DetentSheet(
-  { open, onClose, ariaLabel, header, children, footer, surfaceColor }: DetentSheetProps,
+  { open, onClose, ariaLabel, anchor = "bottom", header, children, footer, surfaceColor }: DetentSheetProps,
 ): ReactNode {
+  // +1 hides downward (bottom sheet), −1 hides upward (top sheet). All geometry
+  // is mirrored by this; `closedPx` (the slide distance) stays positive.
+  const sign = anchor === "top" ? -1 : 1;
+  const isTop = anchor === "top";
+
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
-  const yRef = useRef(0); // current translateY (px)
+  const yRef = useRef(0); // current translateY (px), signed
   const geomRef = useRef<{ detents: number[]; closedPx: number }>({ detents: [0, 0], closedPx: 0 });
   const dragRef = useRef<{ startPointerY: number; startY: number; samples: { t: number; y: number }[] } | null>(null);
   const rafRef = useRef(0);
-  // Mirror surfaceColor into a ref so `paint` (deps []) can read the latest
-  // without being re-created (which would replay the open animation).
+  // Mirror props into refs so `paint` (deps []) reads the latest without being
+  // re-created (which would replay the open animation).
   const surfaceColorRef = useRef(surfaceColor);
+  const signRef = useRef(sign);
   useEffect(() => {
     surfaceColorRef.current = surfaceColor;
-  }, [surfaceColor]);
+    signRef.current = sign;
+  }, [surfaceColor, sign]);
 
   // Write translateY + scrim opacity straight to the DOM (no React render). The
   // settle rides a CSS transition; an active drag turns it off so the sheet
@@ -174,25 +194,25 @@ export function DetentSheet(
     const h = globalThis.innerHeight;
     // The sheet's ACTUAL rendered height — content-driven, clamped by the CSS
     // maxHeight (MAX_FRACTION vh). This is both the slide-out distance and the
-    // "full" extent: opening at translateY 0 reveals the whole sheet (footer
-    // included), so a short confirm shows its actions without any drag.
-    // offsetHeight (not a vh computation) is exact under the iOS Safari
-    // 100vh-vs-innerHeight gap, so the slide-out fully clears.
+    // "full" extent: opening at translateY 0 reveals the whole sheet, so a short
+    // confirm shows its actions without any drag. offsetHeight (not a vh
+    // computation) is exact under the iOS Safari 100vh-vs-innerHeight gap.
     const closedPx = sheetRef.current?.offsetHeight ?? MAX_FRACTION * h;
     // Two levels only when the content is tall enough for a peek to be a
     // distinct stop; otherwise a single content-sized level. Detents are
     // translateY values, ordered most-hidden → full (0).
     const hasPeek = closedPx >= PEEK_ENABLE_FRACTION * h;
-    const detents = hasPeek ? [closedPx - PEEK_FRACTION * h, 0] : [0];
+    const peekY = sign * (closedPx - PEEK_FRACTION * h);
+    const detents = hasPeek ? [peekY, 0] : [0];
     geomRef.current = { detents, closedPx };
     const openY = detents.at(-1) ?? 0; // full
-    paint(closedPx, false); // seed closed (no transition)…
-    const id = globalThis.requestAnimationFrame(() => paint(openY, true)); // …then slide up
+    paint(sign * closedPx, false); // seed closed (no transition)…
+    const id = globalThis.requestAnimationFrame(() => paint(openY, true)); // …then slide open
     return () => globalThis.cancelAnimationFrame(id);
-  }, [open, paint]);
+  }, [open, paint, sign]);
 
   const dismiss = useCallback((): void => {
-    paint(geomRef.current.closedPx, true);
+    paint(signRef.current * geomRef.current.closedPx, true);
     globalThis.setTimeout(onClose, SETTLE_MS);
   }, [paint, onClose]);
 
@@ -208,12 +228,14 @@ export function DetentSheet(
       if (!d) {
         return;
       }
+      const s = signRef.current;
       const { closedPx } = geomRef.current;
       let y = d.startY + (e.clientY - d.startPointerY);
-      if (y < 0) {
-        y *= 0.12; // rubberband past the top
+      if (s * y < 0) {
+        y *= 0.12; // rubberband past full-open
       }
-      y = Math.min(y, closedPx);
+      // Don't drag past fully hidden (sign*closedPx).
+      y = s > 0 ? Math.min(y, closedPx) : Math.max(y, -closedPx);
       d.samples.push({ t: e.timeStamp, y: e.clientY });
       if (d.samples.length > 5) {
         d.samples.shift();
@@ -238,6 +260,7 @@ export function DetentSheet(
     if (!d) {
       return;
     }
+    const s = signRef.current;
     const { detents, closedPx } = geomRef.current;
     const last = d.samples.at(-1);
     const prev = d.samples.at(-2) ?? last;
@@ -247,8 +270,12 @@ export function DetentSheet(
     const dt = last.t - prev.t;
     const vy = dt > 0 ? (last.y - prev.y) / dt : 0; // px/ms, + = downward
     const projected = yRef.current + vy * PROJECTION_MS;
-    const low = detents[0] ?? 0;
-    if (vy > FLICK_DISMISS || projected > low + (closedPx - low) * 0.5) {
+    const low = detents[0] ?? 0; // most-hidden detent
+    // Work in "hiddenness" (s*y: 0 open → closedPx hidden) so the thresholds are
+    // anchor-agnostic: a fast flick toward hidden, or a projected position past
+    // the half-way point between the lowest detent and fully hidden, dismisses.
+    const lowHid = s * low;
+    if (s * vy > FLICK_DISMISS || s * projected > lowHid + (closedPx - lowHid) * 0.5) {
       dismiss();
       return;
     }
@@ -276,11 +303,8 @@ export function DetentSheet(
   }, [open, dismiss]);
 
   // Status-bar tint that `paint`'s settle-only write can't cover: (1) restore
-  // the undimmed surface when the sheet closes/unmounts (the caller may flip
-  // `open` to false directly, without a dismiss-settle paint); (2) re-tint when
-  // `surfaceColor` changes WHILE open — the settings sheet is exactly where the
-  // theme (hence paper colour) is switched — keeping the bar dimmed at the
-  // current detent across that change.
+  // the undimmed surface when the sheet closes/unmounts; (2) re-tint when
+  // `surfaceColor` changes WHILE open (the settings sheet switches the theme).
   useEffect(() => {
     if (!open || surfaceColor === undefined) {
       return;
@@ -297,11 +321,68 @@ export function DetentSheet(
     return null;
   }
 
+  // The grab strip (handle pill) — on the sheet's INNER edge, draggable.
+  const grabStrip = (
+    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 34, py: 0.75 }}>
+      <Box sx={{ width: 56, height: 6, borderRadius: 3, bgcolor: "text.disabled" }} />
+    </Box>
+  );
+  // The draggable bar: grab strip + header. For a top sheet it lives at the
+  // BOTTOM edge with the handle below the header; for a bottom sheet at the top
+  // with the handle above. touchAction:none so the browser doesn't claim the
+  // gesture; header buttons stopPropagation so a tap acts.
+  const dragBar = (
+    <Box
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      sx={{ flexShrink: 0, touchAction: "none", cursor: "grab" }}
+    >
+      {isTop
+        ? (
+          <>
+            {header}
+            {grabStrip}
+          </>
+        )
+        : (
+          <>
+            {grabStrip}
+            {header}
+          </>
+        )}
+    </Box>
+  );
+
+  // A top sheet clears the notch at its leading (top) edge; a bottom sheet pads
+  // its trailing (bottom) edge when there's no footer.
+  let bodyPb: number | string = 0;
+  if (!isTop) {
+    bodyPb = footer == null ? SAFE_BOTTOM : 1;
+  }
+  const body = (
+    <Box
+      sx={{
+        // basis:auto so the body takes its content height (the sheet fits
+        // content); shrink:1 + minHeight:0 so it shrinks and scrolls only once
+        // the content hits the sheet's maxHeight.
+        flex: "0 1 auto",
+        minHeight: 0,
+        overflowY: "auto",
+        px: 2,
+        pt: isTop ? SAFE_TOP : 0,
+        pb: bodyPb,
+      }}
+    >
+      {children}
+    </Box>
+  );
+
   return (
     <>
       {
-        /* Scrim: dims the app, taps dismiss. Painted imperatively (opacity tracks
-          the sheet height). Self-contained — it does NOT touch #root/body. */
+        /* Scrim: dims the app, taps dismiss. Painted imperatively. Self-contained
+          — it does NOT touch #root/body. */
       }
       <Box
         ref={scrimRef}
@@ -318,9 +399,8 @@ export function DetentSheet(
           position: "fixed",
           left: 0,
           right: 0,
-          bottom: 0,
-          // Content-driven height: as tall as the rows, capped so a scrim strip
-          // always shows. The body (flex) scrolls when the content hits the cap.
+          ...(isTop ? { top: 0 } : { bottom: 0 }),
+          // Content-driven height, capped so a scrim strip always shows.
           maxHeight: `${String(MAX_FRACTION * 100)}vh`,
           zIndex: Z + 1,
           willChange: "transform",
@@ -328,57 +408,44 @@ export function DetentSheet(
           display: "flex",
           flexDirection: "column",
           bgcolor: "background.paper",
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
+          // Round the inner (revealed) edge only.
+          ...(isTop
+            ? { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }
+            : { borderTopLeftRadius: 16, borderTopRightRadius: 16 }),
           boxShadow: 8,
           outline: "none",
-          // Pre-paint: offscreen until the open effect's first frame slides it up.
-          transform: "translateY(100vh)",
+          // Pre-paint: offscreen until the open effect's first frame slides it in.
+          transform: `translateY(${String(sign * 100)}vh)`,
         }}
       >
-        {
-          /* Drag affordance: the whole top bar (grab strip + header) moves the
-            sheet. touchAction:none so the browser doesn't claim the gesture for
-            scroll/pull-to-refresh; header buttons stopPropagation so a tap acts. */
-        }
-        <Box
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          sx={{ flexShrink: 0, touchAction: "none", cursor: "grab" }}
-        >
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 34, pt: 1 }}>
-            <Box sx={{ width: 56, height: 6, borderRadius: 3, bgcolor: "text.disabled" }} />
-          </Box>
-          {header}
-        </Box>
-        {
-          /* Body scrolls independently of the drag. The sheet's maxHeight caps the
-            whole surface, so when the content overflows this flex child shrinks
-            (minHeight:0) and scrolls; when it fits, the sheet is content-tall. */
-        }
-        <Box
-          sx={{
-            // basis:auto so the body takes its content height (the sheet fits
-            // content); shrink:1 + minHeight:0 so it shrinks and scrolls only
-            // once the content hits the sheet's maxHeight. NOT flex:1 (basis 0
-            // would collapse the body in an auto-height container).
-            flex: "0 1 auto",
-            minHeight: 0,
-            overflowY: "auto",
-            px: 2,
-            pb: footer == null ? SAFE_BOTTOM : 1,
-          }}
-        >
-          {children}
-        </Box>
-        {footer == null ? null : (
-          <Box
-            sx={{ flexShrink: 0, display: "flex", justifyContent: "flex-end", gap: 1, px: 2, pt: 1, pb: SAFE_BOTTOM }}
-          >
-            {footer}
-          </Box>
-        )}
+        {isTop
+          ? (
+            <>
+              {body}
+              {dragBar}
+            </>
+          )
+          : (
+            <>
+              {dragBar}
+              {body}
+              {footer == null ? null : (
+                <Box
+                  sx={{
+                    flexShrink: 0,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 1,
+                    px: 2,
+                    pt: 1,
+                    pb: SAFE_BOTTOM,
+                  }}
+                >
+                  {footer}
+                </Box>
+              )}
+            </>
+          )}
       </Box>
     </>
   );
