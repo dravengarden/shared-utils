@@ -6,3 +6,4 @@ export { NavShell, type NavShellApi, type NavShellProps } from "./nav-shell.tsx"
 export { createSharedTheme, type SharedThemeOptions } from "./theme.ts";
 export { type ThemeModeState, useThemeMode } from "./theme-mode.ts";
 export type { ThemeChoice, ThemeMode } from "./theme-types.ts";
+export { type SplashHtml, splashHtml, type SplashOptions } from "./splash.ts";
