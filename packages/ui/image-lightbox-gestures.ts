@@ -78,9 +78,11 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     if (settleTimer.current !== 0) {
       clearTimeout(settleTimer.current);
     }
+    // Cast: setTimeout returns `number` in the browser/Deno but `NodeJS.Timeout`
+    // when a consumer's tsconfig pulls in @types/node — store the browser id.
     settleTimer.current = globalThis.setTimeout(() => {
       img.style.willChange = "auto";
-    }, animate ? 260 : 140);
+    }, animate ? 260 : 140) as unknown as number;
   }, [imgRef]);
 
   const setBackdrop = useCallback((dimAlpha: number) => {
