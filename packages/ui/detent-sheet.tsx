@@ -98,9 +98,22 @@ function dimHex(base: string, alpha: number): string {
 }
 
 // The single document-level write this overlay permits (see header): repaint the
-// standalone status bar. No-op when the meta tag is absent.
+// standalone status bar. REPLACE the <meta name="theme-color"> node rather than
+// mutate its `content`: iOS standalone PWAs frequently ignore an in-place
+// attribute change (the bar keeps the colour it read at launch) but re-read a
+// freshly-inserted node. This matches each app's own theme-color writer (e.g.
+// liveview's useTheme), so a sheet's dim/restore and a runtime theme switch
+// agree on the mechanism — the sheet's restore-on-close (the page surface) then
+// reliably lands the post-switch colour instead of leaving it stuck. No-op-safe
+// when no meta exists (we just append one).
 function setStatusBarColor(color: string): void {
-  globalThis.document.querySelector('meta[name="theme-color"]')?.setAttribute("content", color);
+  const head = globalThis.document.head;
+  if (!head) return;
+  for (const m of head.querySelectorAll('meta[name="theme-color"]')) m.remove();
+  const meta = globalThis.document.createElement("meta");
+  meta.setAttribute("name", "theme-color");
+  meta.setAttribute("content", color);
+  head.appendChild(meta);
 }
 
 // Scrim opacity for a given translateY — the exact value `paint` writes to the
