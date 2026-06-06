@@ -44,11 +44,24 @@ export interface BottomSheetProps {
    * still shrinking to fit a narrow tablet. No effect on the mobile sheet.
    */
   readonly wide?: boolean;
+  /**
+   * Force the bottom-sheet surface regardless of viewport width. Default is
+   * width-driven (sheet `< sm`, centered dialog otherwise). Set this when the
+   * host puts its chrome at the bottom on a wider tier too (e.g. a mobile-
+   * browser-style bottom navbar on a tablet), so its modals keep rising from
+   * the bottom instead of switching to a centered dialog.
+   */
+  readonly forceSheet?: boolean;
 }
 
-export function BottomSheet({ open, onClose, title, children, actions, wide = false }: BottomSheetProps): ReactNode {
+export function BottomSheet(
+  { open, onClose, title, children, actions, wide = false, forceSheet = false }: BottomSheetProps,
+): ReactNode {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  // useMediaQuery must run unconditionally (rules of hooks); OR with forceSheet
+  // after.
+  const widthIsMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = forceSheet || widthIsMobile;
 
   // Desktop: a centered dialog. A bottom sheet (and its drag handle) only makes
   // sense on a touch/phone viewport. `fullWidth` + a Paper maxWidth cap lets the
