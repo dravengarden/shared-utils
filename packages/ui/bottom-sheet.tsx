@@ -92,10 +92,17 @@ export function BottomSheet(
       open={open}
       onClose={onClose}
       ariaLabel={typeof title === "string" ? title : undefined}
-      // Dim the standalone status bar in lockstep with the scrim: the sheet's
-      // surface is `background.paper`, so the top safe-area strip matches the
-      // dimmed page instead of staying a bright band. Inert when hosted.
-      surfaceColor={theme.palette.background.paper}
+      // Dim the standalone status bar in lockstep with the scrim, and — since
+      // surfaceColor is also what DetentSheet RESTORES the bar to on close —
+      // make that resting colour the page's, not the sheet's. The status-bar
+      // strip sits in the scrim gap ABOVE the sheet, over the dimmed page
+      // (`background.default`, the app's body + AppBar surface), not over the
+      // sheet's `paper`. Using `default` both dims the strip against the right
+      // base AND leaves the bar matching the navbar after close — paper left it
+      // a shade off the navbar every time the theme changed (theme is only
+      // switchable from inside a sheet). Reactive, so a theme switch while the
+      // sheet is open restores the new theme's colour. Inert when hosted.
+      surfaceColor={theme.palette.background.default}
       header={title == null ? <Box sx={{ pb: 0.5 }} /> : (
         <Box
           sx={{
