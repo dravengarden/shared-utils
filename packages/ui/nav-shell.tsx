@@ -3,8 +3,9 @@
 // One nav behavior for every app, and NO floating affordances (they read as
 // gimmicky and, over a reading column, hurt usability). The shape:
 //
-//   • A thin, fixed top bar (a layout sibling, never an overlay) holds the
-//     menu toggle, the title, and app actions.
+//   • A thin bar (a layout sibling, never an overlay) holds the menu toggle,
+//     the title, and app actions. It sits at the top by default; `barPosition`
+//     can drop it to the bottom for a mobile-browser-style bar.
 //   • Desktop (≥ breakpoint): a persistent left sidebar with the app's nav
 //     body. The toggle collapses it to just the content; collapsed, the toggle
 //     becomes a hamburger that brings it back.
@@ -47,6 +48,11 @@ export interface NavShellProps {
   readonly nav: (api: NavShellApi) => ReactNode;
   /** App-specific top-bar actions (e.g. settings), placed at the bar's end. */
   readonly actions?: ReactNode;
+  /** Where the bar sits. Default "top". "bottom" makes it a mobile-browser-style
+   *  bottom bar (the content fills above it, the nav drawer slides UP from it),
+   *  and the bar owns the home-indicator inset instead of the notch. Apps gate
+   *  this on their own mobile tier — desktop is best left "top". */
+  readonly barPosition?: "top" | "bottom";
   /** The main content area. */
   readonly children: ReactNode;
 }
@@ -60,7 +66,8 @@ function saveCollapsed(appKey: string, collapsed: boolean): void {
 }
 
 export function NavShell(props: NavShellProps): ReactNode {
-  const { appKey, title, navWidth = 280, breakpoint = "lg", nav, actions, children } = props;
+  const { appKey, title, navWidth = 280, breakpoint = "lg", nav, actions, barPosition = "top", children } = props;
+  const bottom = barPosition === "bottom";
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down(breakpoint));
 
@@ -107,6 +114,9 @@ export function NavShell(props: NavShellProps): ReactNode {
         component="header"
         sx={{
           flexShrink: 0,
+          // Bottom mode flips the bar below the content via flex order (one
+          // bar, not a second element), so reading order in the DOM is stable.
+          order: bottom ? 2 : 0,
           display: "flex",
           alignItems: "center",
           gap: 0.5,
@@ -114,14 +124,17 @@ export function NavShell(props: NavShellProps): ReactNode {
           minHeight: 48,
           bgcolor: "background.paper",
           // Material elevation instead of a flat 1px rule: the bar reads as a
-          // surface floating just above the content, and the shadow falls onto
-          // the reading column below. position+zIndex so the shadow paints over
-          // the content (a flex sibling would otherwise sit at the same layer).
+          // surface floating above the content. position+zIndex so the shadow
+          // paints over the content (a flex sibling would otherwise sit at the
+          // same layer). The shadow points toward the content — down from a top
+          // bar, up from a bottom bar.
           position: "relative",
           zIndex: (t) => t.zIndex.appBar,
-          boxShadow: 3,
-          // Clear the iPhone status bar / notch.
-          pt: "env(safe-area-inset-top, 0px)",
+          boxShadow: bottom ? "0 -2px 8px rgba(0,0,0,0.18)" : 3,
+          // Own the inset on the bar's outer edge: the notch up top, the home
+          // indicator down bottom.
+          pt: bottom ? 0 : "env(safe-area-inset-top, 0px)",
+          pb: bottom ? "env(safe-area-inset-bottom, 0px)" : 0,
         }}
       >
         <Tooltip title={sidebarShown ? "Collapse" : "Menu"}>
@@ -150,7 +163,7 @@ export function NavShell(props: NavShellProps): ReactNode {
         </Box>
       </Box>
 
-      <Box sx={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <Box sx={{ order: bottom ? 1 : 0, display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
         {sidebarShown && (
           <Box
             sx={{
@@ -169,9 +182,12 @@ export function NavShell(props: NavShellProps): ReactNode {
           </Box>
         )}
 
-        {/* Mobile: the same nav body in a top-anchored drawer (slides down). */}
+        {
+          /* Mobile: the same nav body in a drawer that slides from the bar's edge
+            — down from a top bar, up from a bottom bar. */
+        }
         <Drawer
-          anchor="top"
+          anchor={bottom ? "bottom" : "top"}
           open={isMobile && mobileOpen}
           onClose={closeMobile}
           ModalProps={{ keepMounted: true }}
@@ -179,7 +195,8 @@ export function NavShell(props: NavShellProps): ReactNode {
             paper: {
               sx: {
                 maxHeight: "85dvh",
-                pt: "env(safe-area-inset-top, 0px)",
+                pt: bottom ? 0 : "env(safe-area-inset-top, 0px)",
+                pb: bottom ? "env(safe-area-inset-bottom, 0px)" : 0,
                 display: "flex",
                 flexDirection: "column",
               },
