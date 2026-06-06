@@ -27,7 +27,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Box, IconButton } from "@mui/material";
+import { Box, IconButton, useTheme } from "@mui/material";
 import { useLightboxGestures } from "./image-lightbox-gestures.ts";
 
 export interface GalleryImage {
@@ -55,6 +55,13 @@ export interface ImageLightboxProps {
 
 export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | null {
   const { images, index, onIndex, onClose, plate = true } = props;
+  // In dark mode a plated figure (white-bg diagram / line art) goes dark-native
+  // — same invert + hue-rotate the in-page figure plate uses — so it reads
+  // identically enlarged as it does inline, instead of glaring white. Photos
+  // (plate=false) are never touched. (useTheme runs unconditionally — never
+  // gate a hook behind `&&`.)
+  const isDarkMode = useTheme().palette.mode === "dark";
+  const darkPlate = plate && isDarkMode;
   const overlayRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -166,6 +173,9 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
           padding: plate ? "0.5rem" : 0,
           borderRadius: "6px",
           boxSizing: "border-box",
+          // Match the in-page plate in dark mode (plate + art invert together,
+          // hues preserved), so the enlarged figure isn't a white glare.
+          filter: darkPlate ? "invert(0.9) hue-rotate(180deg)" : undefined,
         }}
       />
 
