@@ -136,7 +136,11 @@ export function BottomSheet(
       )}
       footer={actions ?? undefined}
     >
-      {children}
+      {
+        /* The sheet body is edge-to-edge; a modal sheet's text/controls want a
+          side gutter, so add it here (every BottomSheet consumer inherits it). */
+      }
+      <Box sx={{ px: 2 }}>{children}</Box>
     </DetentSheet>
   );
 }

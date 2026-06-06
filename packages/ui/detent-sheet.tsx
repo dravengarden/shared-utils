@@ -391,7 +391,9 @@ export function DetentSheet(
         flex: "0 1 auto",
         minHeight: 0,
         overflowY: "auto",
-        px: 2,
+        // No horizontal padding: the sheet doesn't impose a side gutter on its
+        // content, so an edge-to-edge body (a full-width list, a chart) works.
+        // Consumers that want a text gutter add their own px (BottomSheet does).
         pt: isTop ? SAFE_TOP : 0,
         pb: bodyPb,
       }}
