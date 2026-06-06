@@ -71,9 +71,14 @@ const SETTLE_MS = 320;
 const SETTLE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 // Scrim darkens as the sheet rises (0 closed → this at full).
 const SCRIM_MAX = 0.45;
-// Above the app chrome (banners are z=10) and the iframe. Self-contained, so a
-// plain high z-index is enough; no portal/Modal stacking to coordinate with.
-const Z = 1300;
+// The sheet is a drawer-class overlay, so it sits in MUI's DRAWER band — above
+// app chrome (banners z=10, AppBar 1100, MUI Drawer 1200) but BELOW the modal
+// band (zIndex.modal = 1300). That ordering is load-bearing: MUI Menu / Select /
+// Popover / Dialog all portal into the modal band, so a sheet at 1300+ OCCLUDES
+// every popup opened from inside it (the long-standing "menu/dropdown opens
+// behind the sheet" bug). Keeping the sheet < 1300 lets all those overlays
+// render above it for free — no per-control z-index overrides needed anywhere.
+const Z = 1250;
 const SAFE_BOTTOM = "calc(16px + env(safe-area-inset-bottom, 0px))";
 const SAFE_TOP = "env(safe-area-inset-top, 0px)";
 
@@ -107,13 +112,17 @@ function dimHex(base: string, alpha: number): string {
 // reliably lands the post-switch colour instead of leaving it stuck. No-op-safe
 // when no meta exists (we just append one).
 function setStatusBarColor(color: string): void {
-  const head = globalThis.document.head;
-  if (!head) return;
-  for (const m of head.querySelectorAll('meta[name="theme-color"]')) m.remove();
+  const { head } = globalThis.document;
+  if (!head) {
+    return;
+  }
+  for (const m of head.querySelectorAll('meta[name="theme-color"]')) {
+    m.remove();
+  }
   const meta = globalThis.document.createElement("meta");
   meta.setAttribute("name", "theme-color");
   meta.setAttribute("content", color);
-  head.appendChild(meta);
+  head.append(meta);
 }
 
 // Scrim opacity for a given translateY — the exact value `paint` writes to the

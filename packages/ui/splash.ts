@@ -48,7 +48,7 @@ export function splashHtml(opts: SplashOptions): SplashHtml {
         position: fixed; inset: 0; z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
         background: ${lightBg}; color: ${lightFg};
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
       }
       @media (prefers-color-scheme: dark) { #app-splash { background: ${darkBg}; color: ${darkFg}; } }
       #app-splash .app-splash-spinner {

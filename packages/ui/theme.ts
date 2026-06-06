@@ -21,7 +21,15 @@ export function createSharedTheme({ primary, mode }: SharedThemeOptions): Theme 
     },
     shape: { borderRadius: 10 },
     typography: {
-      fontFamily: '"Inter", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+      // UI font follows each OS via `system-ui` (SF on Apple, Segoe on Windows,
+      // the GTK/Qt face on Linux) so every app reads as native on its platform
+      // — including the portaled MUI Select/menu popups, which inherit this
+      // through the theme context. Brand identity is carried by `palette.primary`,
+      // NOT the font: a pinned brand face (was Inter-first here) looked foreign
+      // on iPad/iPhone, where the native SF is expected. "Noto Sans" trails for
+      // CJK coverage on platforms whose system face lacks it.
+      fontFamily:
+        'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
       button: { textTransform: "none", fontWeight: 600 },
     },
     components: {
