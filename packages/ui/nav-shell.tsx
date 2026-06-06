@@ -21,6 +21,8 @@ import MenuIcon from "@mui/icons-material/Menu";
 import { Box, Drawer, IconButton, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
 import { type ReactNode, useCallback, useState } from "react";
 
+import { DetentSheet } from "./detent-sheet.tsx";
+
 // Width below which nav collapses to a hamburger + top drawer. `lg` (1200px),
 // not MUI's `sm`: tablets — iPad portrait (768–834) and landscape (1024–1180) —
 // and an embedding iframe (which eats horizontal room) should all get the
@@ -183,28 +185,38 @@ export function NavShell(props: NavShellProps): ReactNode {
         )}
 
         {
-          /* Mobile: the same nav body in a drawer that slides from the bar's edge
-            — down from a top bar, up from a bottom bar. */
+          /* Mobile nav body. A bottom bar presents it as the momentum
+            DetentSheet (drag handle, rounded top, swipe-to-dismiss) — the same
+            sheet every other bottom-anchored surface uses, so it feels native
+            and consistent. A top bar keeps the plain top Drawer that slides
+            down from under it. */
         }
-        <Drawer
-          anchor={bottom ? "bottom" : "top"}
-          open={isMobile && mobileOpen}
-          onClose={closeMobile}
-          ModalProps={{ keepMounted: true }}
-          slotProps={{
-            paper: {
-              sx: {
-                maxHeight: "85dvh",
-                pt: bottom ? 0 : "env(safe-area-inset-top, 0px)",
-                pb: bottom ? "env(safe-area-inset-bottom, 0px)" : 0,
-                display: "flex",
-                flexDirection: "column",
-              },
-            },
-          }}
-        >
-          {navBody}
-        </Drawer>
+        {bottom
+          ? (
+            <DetentSheet open={isMobile && mobileOpen} onClose={closeMobile} ariaLabel="Navigation">
+              {navBody}
+            </DetentSheet>
+          )
+          : (
+            <Drawer
+              anchor="top"
+              open={isMobile && mobileOpen}
+              onClose={closeMobile}
+              ModalProps={{ keepMounted: true }}
+              slotProps={{
+                paper: {
+                  sx: {
+                    maxHeight: "85dvh",
+                    pt: "env(safe-area-inset-top, 0px)",
+                    display: "flex",
+                    flexDirection: "column",
+                  },
+                },
+              }}
+            >
+              {navBody}
+            </Drawer>
+          )}
 
         <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {children}
