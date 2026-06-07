@@ -426,13 +426,12 @@ export function DetentSheet(
         sx={{ position: "fixed", inset: 0, bgcolor: "common.black", zIndex: Z, opacity: 0, touchAction: "none" }}
       />
       {
-        /* An elevated MUI Paper, not a plain Box: it reads as a layer floating
-          above the dimmed page (Material elevation) — the affordance that says
-          "transient overlay, tap the scrim to dismiss". elevation supplies the
-          surface tint INCLUDING the dark-mode overlay that a Dialog has, so the
-          sheet matches the app's modals in both themes (a flat bgcolor only
-          matched in light mode). `square` drops Paper's default all-corner radius
-          so only the inner edge rounds below. */
+        /* An elevated MUI Paper: its SHADOW reads as a layer floating above the
+          dimmed page ("transient overlay, tap scrim to dismiss"). The surface is
+          pinned to flat `background.paper` (backgroundImage:none below) NOT Paper's
+          dark-mode elevation overlay, so the chrome matches the `background.paper`
+          content consumers fill it with (the tint made the handle strip a lighter
+          band — a two-tone bug). `square` drops the all-corner radius. */
       }
       <Paper
         ref={sheetRef}
@@ -453,6 +452,10 @@ export function DetentSheet(
           contain: "layout paint",
           display: "flex",
           flexDirection: "column",
+          // Flat background.paper (see the Paper comment) — drops the dark-mode
+          // elevation overlay so chrome + content are one surface.
+          bgcolor: "background.paper",
+          backgroundImage: "none",
           // Round the inner (revealed) edge only.
           ...(isTop
             ? { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }
