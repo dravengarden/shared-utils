@@ -48,6 +48,7 @@
 
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef } from "react";
 import { Box, Paper } from "@mui/material";
+import { markDetentSheetOpen } from "./detent-sheet-open.ts";
 
 // The sheet sizes to its content but never taller than this fraction of the
 // viewport, so a strip of dimmed page always stays beyond it (it reads as a
@@ -309,6 +310,16 @@ export function DetentSheet(
     });
     paint(detents[best] ?? 0, true);
   }, [dismiss, paint]);
+
+  // Track this sheet in the module open-count while open, so other fixed chrome
+  // (a floating puck) can recede behind it — the inline sheet can't out-stack a
+  // root-level fixed element via z-index alone (see detent-sheet-open.ts).
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    return markDetentSheetOpen();
+  }, [open]);
 
   // Escape closes — keyboard parity with a dialog, without being a Modal.
   useEffect(() => {
