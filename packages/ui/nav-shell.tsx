@@ -140,7 +140,11 @@ export function NavShell(props: NavShellProps): ReactNode {
           display: "flex",
           alignItems: "center",
           gap: 0.5,
-          px: 0.5,
+          // Keep the end buttons (menu / actions) off the screen edge so they
+          // clear the display's rounded corners and a landscape notch — pull in
+          // the safe-area inset, floored to a comfortable 12px in portrait.
+          pl: "max(env(safe-area-inset-left, 0px), 12px)",
+          pr: "max(env(safe-area-inset-right, 0px), 12px)",
           minHeight: 48,
           bgcolor: "background.paper",
           // Separator: a top bar floats over the content (Material elevation,
