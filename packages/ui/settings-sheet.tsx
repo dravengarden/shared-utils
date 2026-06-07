@@ -49,7 +49,13 @@ export function SettingsSheet({ title = "Settings", children, wide = false }: Se
           size="small"
           sx={{ width: { xs: 40, lg: 36 }, height: { xs: 40, lg: 36 } }}
         >
-          <SettingsIcon fontSize="small" />
+          {
+            /* Fixed px, not `fontSize="small"` (1.25rem): the settings gear is
+              app chrome, so it must stay put when a host app scales its root
+              font-size for content. 20px == the rem default, so apps that
+              don't scale fonts see no change. */
+          }
+          <SettingsIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </Tooltip>
       {
