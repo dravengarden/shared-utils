@@ -110,6 +110,12 @@ export function NavShell(props: NavShellProps): ReactNode {
 
   const navBody = nav({ closeMobile, isMobile });
 
+  // Bottom bar: pad top AND bottom by the SAME trimmed home-indicator inset, so
+  // the content sits vertically centred in the bar (a one-sided bottom inset
+  // pushes it up and reads as "not centred"), while still clearing the
+  // indicator. Trimmed well below the full inset so the bar isn't bottom-heavy.
+  const bottomPad = "max(calc(env(safe-area-inset-bottom, 0px) - 22px), 6px)";
+
   // A string title gets the default single-line styling; a node title is
   // rendered raw in the slot, so an app can stack two lines (e.g. a chapter over
   // its book) or supply its own chrome.
@@ -157,12 +163,11 @@ export function NavShell(props: NavShellProps): ReactNode {
           zIndex: (t) => t.zIndex.appBar,
           boxShadow: bottom ? "none" : 3,
           ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
-          // Own the inset on the bar's outer edge: the notch up top, the home
-          // indicator down bottom. The bottom bar sits ~12px tighter than the
-          // full home-indicator inset (floored) — the content still clears the
-          // indicator, and the bar isn't bottom-heavy.
-          pt: bottom ? 0 : "env(safe-area-inset-top, 0px)",
-          pb: bottom ? "max(calc(env(safe-area-inset-bottom, 0px) - 12px), 6px)" : 0,
+          // Top bar owns the notch (pt only). Bottom bar is padded symmetrically
+          // (see bottomPad) so its content is vertically centred and clears the
+          // home indicator.
+          pt: bottom ? bottomPad : "env(safe-area-inset-top, 0px)",
+          pb: bottom ? bottomPad : 0,
         }}
       >
         <Tooltip title={sidebarShown ? "Collapse" : "Menu"}>
