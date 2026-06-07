@@ -47,7 +47,7 @@
 // pointer-driven screen.
 
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef } from "react";
-import { Box } from "@mui/material";
+import { Box, Paper } from "@mui/material";
 
 // The sheet sizes to its content but never taller than this fraction of the
 // viewport, so a strip of dimmed page always stays beyond it (it reads as a
@@ -414,11 +414,22 @@ export function DetentSheet(
         onClick={dismiss}
         sx={{ position: "fixed", inset: 0, bgcolor: "common.black", zIndex: Z, opacity: 0, touchAction: "none" }}
       />
-      <Box
+      {
+        /* An elevated MUI Paper, not a plain Box: it reads as a layer floating
+          above the dimmed page (Material elevation) — the affordance that says
+          "transient overlay, tap the scrim to dismiss". elevation supplies the
+          surface tint INCLUDING the dark-mode overlay that a Dialog has, so the
+          sheet matches the app's modals in both themes (a flat bgcolor only
+          matched in light mode). `square` drops Paper's default all-corner radius
+          so only the inner edge rounds below. */
+      }
+      <Paper
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        elevation={8}
+        square
         sx={{
           position: "fixed",
           left: 0,
@@ -431,12 +442,10 @@ export function DetentSheet(
           contain: "layout paint",
           display: "flex",
           flexDirection: "column",
-          bgcolor: "background.paper",
           // Round the inner (revealed) edge only.
           ...(isTop
             ? { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }
             : { borderTopLeftRadius: 16, borderTopRightRadius: 16 }),
-          boxShadow: 8,
           outline: "none",
           // Pre-paint: offscreen until the open effect's first frame slides it in.
           transform: `translateY(${String(sign * 100)}vh)`,
@@ -470,7 +479,7 @@ export function DetentSheet(
               )}
             </>
           )}
-      </Box>
+      </Paper>
     </>
   );
 }
