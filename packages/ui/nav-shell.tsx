@@ -154,9 +154,11 @@ export function NavShell(props: NavShellProps): ReactNode {
           boxShadow: bottom ? "none" : 3,
           ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
           // Own the inset on the bar's outer edge: the notch up top, the home
-          // indicator down bottom.
+          // indicator down bottom. The bottom bar sits ~12px tighter than the
+          // full home-indicator inset (floored) — the content still clears the
+          // indicator, and the bar isn't bottom-heavy.
           pt: bottom ? 0 : "env(safe-area-inset-top, 0px)",
-          pb: bottom ? "env(safe-area-inset-bottom, 0px)" : 0,
+          pb: bottom ? "max(calc(env(safe-area-inset-bottom, 0px) - 12px), 6px)" : 0,
         }}
       >
         <Tooltip title={sidebarShown ? "Collapse" : "Menu"}>
