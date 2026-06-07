@@ -110,6 +110,24 @@ export function NavShell(props: NavShellProps): ReactNode {
 
   const navBody = nav({ closeMobile, isMobile });
 
+  // A string title gets the default single-line styling; a node title is
+  // rendered raw in the slot, so an app can stack two lines (e.g. a chapter over
+  // its book) or supply its own chrome.
+  let titleSlot: ReactNode = <Box sx={{ flex: 1 }} />;
+  if (typeof title === "string") {
+    titleSlot = (
+      <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>
+        {title}
+      </Typography>
+    );
+  } else if (title != null) {
+    titleSlot = (
+      <Box sx={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        {title}
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
       <Box
@@ -125,14 +143,16 @@ export function NavShell(props: NavShellProps): ReactNode {
           px: 0.5,
           minHeight: 48,
           bgcolor: "background.paper",
-          // Material elevation instead of a flat 1px rule: the bar reads as a
-          // surface floating above the content. position+zIndex so the shadow
-          // paints over the content (a flex sibling would otherwise sit at the
-          // same layer). The shadow points toward the content — down from a top
-          // bar, up from a bottom bar.
+          // Separator: a top bar floats over the content (Material elevation,
+          // shadow falling down). A BOTTOM bar gets a flat 1px divider instead —
+          // an upward drop-shadow there reads heavy and muddy over the reading
+          // surface; a hairline rule is the cleaner, calmer cut. position+zIndex
+          // so a top bar's shadow paints over the content (flex siblings would
+          // otherwise share a layer).
           position: "relative",
           zIndex: (t) => t.zIndex.appBar,
-          boxShadow: bottom ? "0 -2px 8px rgba(0,0,0,0.18)" : 3,
+          boxShadow: bottom ? "none" : 3,
+          ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
           // Own the inset on the bar's outer edge: the notch up top, the home
           // indicator down bottom.
           pt: bottom ? 0 : "env(safe-area-inset-top, 0px)",
@@ -153,13 +173,7 @@ export function NavShell(props: NavShellProps): ReactNode {
             {sidebarShown ? <ChevronLeftIcon /> : <MenuIcon />}
           </IconButton>
         </Tooltip>
-        {title == null
-          ? <Box sx={{ flex: 1 }} />
-          : (
-            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>
-              {title}
-            </Typography>
-          )}
+        {titleSlot}
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
           {actions}
         </Box>
