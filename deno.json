@@ -1,5 +1,5 @@
 {
-  "workspace": ["./packages/ui"],
+  "workspace": ["./packages/ui", "./packages/sync"],
   "imports": {
     "react": "npm:react@^19",
     "react/": "npm:/react@^19/",
@@ -15,7 +15,7 @@
   },
   "nodeModulesDir": "auto",
   "compilerOptions": {
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable", "deno.ns"],
     "jsx": "react-jsx",
     "jsxImportSource": "react",
     "strict": true,
@@ -40,7 +40,8 @@
     "fmt:check": "deno fmt --check",
     "lint": "deno run -A npm:oxlint@1.67.0 --deny-warnings",
     "lint:compiler": "deno run -A npm:eslint@9 --max-warnings 0 .",
-    "check": "deno check packages/ui/mod.ts",
-    "verify": "deno fmt --check && deno run -A npm:oxlint@1.67.0 --deny-warnings && deno run -A npm:eslint@9 --max-warnings 0 . && deno check packages/ui/mod.ts"
+    "check": "deno check packages/ui/mod.ts packages/sync/mod.ts",
+    "test": "deno test packages/sync/",
+    "verify": "deno fmt --check && deno run -A npm:oxlint@1.67.0 --deny-warnings && deno run -A npm:eslint@9 --max-warnings 0 . && deno check packages/ui/mod.ts packages/sync/mod.ts && deno test packages/sync/"
   }
 }

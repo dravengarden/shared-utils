@@ -1,6 +1,8 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@*": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
     "npm:@emotion/react@11": "11.14.0_react@19.2.6",
     "npm:@emotion/styled@11": "11.14.1_@emotion+react@11.14.0__react@19.2.6_react@19.2.6",
     "npm:@mui/icons-material@7": "7.3.11_@mui+material@7.3.11__@emotion+react@11.14.0___react@19.2.6__@emotion+styled@11.14.1___@emotion+react@11.14.0____react@19.2.6___react@19.2.6__react@19.2.6__react-dom@19.2.6___react@19.2.6_react@19.2.6_@emotion+react@11.14.0__react@19.2.6_@emotion+styled@11.14.1__@emotion+react@11.14.0___react@19.2.6__react@19.2.6",
@@ -12,6 +14,17 @@
     "npm:react-dom@19": "19.2.6_react@19.2.6",
     "npm:react@19": "19.2.6",
     "npm:typescript-eslint@8": "8.60.1_eslint@9.39.4_typescript@6.0.3"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
   },
   "npm": {
     "@babel/code-frame@7.29.7": {
