@@ -104,16 +104,14 @@ const Z = 1250;
 const SAFE_BOTTOM = "calc(16px + env(safe-area-inset-bottom, 0px))";
 const SAFE_TOP = "env(safe-area-inset-top, 0px)";
 
-// `cover` variant — a near-full-screen sheet (the 微信读书 / iOS pageSheet feel):
-// it rises to leave only a thin sliver of the dimmed page at the top (clearing
-// the notch / Dynamic Island), reads as a frosted-glass layer, and has a single
-// full detent (flick down to dismiss — no medium peek). `100dvh` (the DYNAMIC
-// viewport) tracks the visible height under the iOS Safari toolbar, so the top
-// gap is exact where a `100vh` would overflow. Capped + centred so it's a wide
-// edge-to-edge cover on a phone but a centred card on an iPad, not a stretched
-// full-width slab.
-const COVER_TOP = "calc(env(safe-area-inset-top, 0px) + 12px)";
-const COVER_HEIGHT = `calc(100dvh - ${COVER_TOP})`;
+// `cover` variant — a TRUE full-screen sheet: the frosted-glass layer fills the
+// whole screen (`100dvh`, the DYNAMIC viewport, tracks the visible height under
+// the iOS toolbar), and its CONTENT is padded down by the top safe-area inset so
+// the grab handle + rows clear the notch / Dynamic Island while the glass itself
+// bleeds under the status bar. Single full detent (flick down to dismiss — no
+// medium peek). Capped + centred so it's edge-to-edge on a phone but a centred
+// card on an iPad.
+const COVER_HEIGHT = "100dvh";
 const COVER_MAX_WIDTH = 720;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
@@ -536,6 +534,9 @@ export function DetentSheet(
               maxHeight: COVER_HEIGHT,
               maxWidth: COVER_MAX_WIDTH,
               marginInline: "auto",
+              // The glass bleeds to the very top; the content (grab handle + rows)
+              // is pushed below the notch / Dynamic Island by the safe-area inset.
+              pt: SAFE_TOP,
             }
             : { maxHeight: `${String(MAX_FRACTION * 100)}vh` }),
           zIndex: z + 1,
@@ -556,10 +557,11 @@ export function DetentSheet(
               WebkitBackdropFilter: "blur(30px) saturate(200%)",
             }
             : { bgcolor: "background.paper" }),
-          // Round the inner (revealed) edge only.
-          ...(isTop
-            ? { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }
-            : { borderTopLeftRadius: 16, borderTopRightRadius: 16 }),
+          // Round the inner (revealed) edge only — but a full-screen cover bleeds
+          // to the screen edges, so it's square (rounded corners at the very top
+          // would sit behind the status bar / island and just clip the glass).
+          ...(!isCover && isTop ? { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 } : {}),
+          ...(!isCover && !isTop ? { borderTopLeftRadius: 16, borderTopRightRadius: 16 } : {}),
           outline: "none",
           // Pre-paint: offscreen until the open effect's first frame slides it in.
           transform: `translateY(${String(sign * 100)}vh)`,
