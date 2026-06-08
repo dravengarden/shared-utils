@@ -39,6 +39,14 @@ Deno.test("confirmed pending drops once; duplicate patch is a no-op", () => {
   assertEquals(c.view(), { n: 5 }); // no double-apply (version not newer)
 });
 
+Deno.test("mutate accepts an explicit id (= cmid) so confirm-by-cmid drops it", () => {
+  const c = createClient<S, typeof muts>({ clientId: "c", mutators: muts, initial });
+  const m = c.mutate("add", { d: 1 }, "cmid-X");
+  assertEquals(m.id, "cmid-X");
+  c.confirm(["cmid-X"]); // the same key landing elsewhere drops exactly this row
+  assertEquals(c.pending().length, 0);
+});
+
 Deno.test("applyPatch force: resync adopts a lower-version snapshot + replays pending", () => {
   const c = createClient<S, typeof muts>({ clientId: "c", mutators: muts, initial: { version: 5, value: { n: 100 } } });
   c.mutate("add", { d: 7 }); // pending → view 107

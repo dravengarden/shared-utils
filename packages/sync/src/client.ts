@@ -33,8 +33,11 @@ export interface Client<T, M extends Mutators<T>> {
   pending(): readonly Mutation[];
   /** Apply a mutator locally (instant) and return the Mutation to send to the
    *  arbiter. Re-send the SAME object on retry — its id makes the arbiter
-   *  idempotent. */
-  mutate<K extends keyof M & string>(name: K, args: ArgsOf<T, M, K>): Mutation<ArgsOf<T, M, K>>;
+   *  idempotent. Pass an explicit `id` when the mutation id must equal an
+   *  externally-meaningful key — e.g. an optimistic row's `cmid`, so the same
+   *  cmid landing in this state's value confirms (drops) exactly this pending
+   *  row with no duplicate. Defaults to the client's `newId`. */
+  mutate<K extends keyof M & string>(name: K, args: ArgsOf<T, M, K>, id?: MutationId): Mutation<ArgsOf<T, M, K>>;
   /** Drop pending mutations confirmed OUT-OF-BAND — i.e. acknowledged by a signal
    *  OTHER than this state's patch (e.g. an optimistic "submit" whose row was
    *  confirmed by a separate event stream, not by the value landing in this
@@ -109,8 +112,8 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
     version: (): Version => base.version,
     pending: (): readonly Mutation[] => queue,
 
-    mutate<K extends keyof M & string>(name: K, args: ArgsOf<T, M, K>): Mutation<ArgsOf<T, M, K>> {
-      const m: Mutation<ArgsOf<T, M, K>> = { id: newId(), client: clientId, name, args };
+    mutate<K extends keyof M & string>(name: K, args: ArgsOf<T, M, K>, id?: MutationId): Mutation<ArgsOf<T, M, K>> {
+      const m: Mutation<ArgsOf<T, M, K>> = { id: id ?? newId(), client: clientId, name, args };
       queue.push(m);
       // Incremental: apply on the current view (== replaying just this one on top
       // of the already-replayed queue), equivalent to a full recompute.
