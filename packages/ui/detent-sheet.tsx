@@ -1,3 +1,11 @@
+// max-lines + max-lines-per-function are disabled for THIS file only: it's the
+// most gesture/animation-dense component here — a single cohesive sheet whose
+// WHY-dense comments (the house style — every non-obvious geometry/gesture
+// choice is explained) push it just past both caps while the executable code
+// stays lean. Splitting it or tightening the docs to satisfy a line count would
+// lose more than it saves.
+// oxlint-disable max-lines, max-lines-per-function
+
 // DetentSheet — a content-sizing momentum sheet for mobile.
 //
 // Anchors to the bottom (slides up) by DEFAULT, or to the top (`anchor="top"`,
@@ -46,7 +54,14 @@
 // bottom-sheet.tsx), where a sheet and its drag handle read wrong on a wide
 // pointer-driven screen.
 
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Box, Paper } from "@mui/material";
 import { markDetentSheetOpen } from "./detent-sheet-open.ts";
 
@@ -320,9 +335,14 @@ export function DetentSheet(
   const [level, setLevel] = useState(0);
   useEffect(() => {
     if (!open) {
-      return undefined;
+      return;
     }
     const { level: l, close } = markDetentSheetOpen();
+    // `level` is only knowable AFTER markDetentSheetOpen() imperatively
+    // registers this sheet (mount/unmount side effects), so storing the
+    // returned depth via setState here is the correct pattern — not the
+    // render-loop anti-pattern the rule guards against.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLevel(l);
     return close;
   }, [open]);
