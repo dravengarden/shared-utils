@@ -46,7 +46,7 @@
 // bottom-sheet.tsx), where a sheet and its drag handle read wrong on a wide
 // pointer-driven screen.
 
-import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef } from "react";
+import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Box, Paper } from "@mui/material";
 import { markDetentSheetOpen } from "./detent-sheet-open.ts";
 
@@ -313,12 +313,18 @@ export function DetentSheet(
 
   // Track this sheet in the module open-count while open, so other fixed chrome
   // (a floating puck) can recede behind it — the inline sheet can't out-stack a
-  // root-level fixed element via z-index alone (see detent-sheet-open.ts).
+  // root-level fixed element via z-index alone (see detent-sheet-open.ts). The
+  // returned `level` is this sheet's depth in the open stack; it drives the
+  // scrim/surface z-index below so a later sheet's scrim covers an earlier sheet
+  // (otherwise every sheet shares one z-band and the lower one peeks through).
+  const [level, setLevel] = useState(0);
   useEffect(() => {
     if (!open) {
-      return;
+      return undefined;
     }
-    return markDetentSheetOpen();
+    const { level: l, close } = markDetentSheetOpen();
+    setLevel(l);
+    return close;
   }, [open]);
 
   // Escape closes — keyboard parity with a dialog, without being a Modal.
@@ -413,6 +419,12 @@ export function DetentSheet(
     </Box>
   );
 
+  // Per-level z so a later sheet stacks ABOVE earlier ones: scrim = z, surface =
+  // z+1. Clamped to 24 levels (z ≤ 1298) so even a pathological stack stays under
+  // MUI's modal band (1300) — a Menu/Select opened from a sheet must still float
+  // above it.
+  const z = Z + Math.min(level, 24) * 2;
+
   return (
     <>
       {
@@ -423,7 +435,7 @@ export function DetentSheet(
         ref={scrimRef}
         aria-hidden
         onClick={dismiss}
-        sx={{ position: "fixed", inset: 0, bgcolor: "common.black", zIndex: Z, opacity: 0, touchAction: "none" }}
+        sx={{ position: "fixed", inset: 0, bgcolor: "common.black", zIndex: z, opacity: 0, touchAction: "none" }}
       />
       {
         /* An elevated MUI Paper: its SHADOW reads as a layer floating above the
@@ -447,7 +459,7 @@ export function DetentSheet(
           ...(isTop ? { top: 0 } : { bottom: 0 }),
           // Content-driven height, capped so a scrim strip always shows.
           maxHeight: `${String(MAX_FRACTION * 100)}vh`,
-          zIndex: Z + 1,
+          zIndex: z + 1,
           willChange: "transform",
           contain: "layout paint",
           display: "flex",

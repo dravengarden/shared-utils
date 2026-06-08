@@ -13,6 +13,14 @@
 import { useEffect, useState } from "react";
 
 let openCount = 0;
+// Monotonic stack level handed to each sheet as it opens, so a later sheet's
+// z-index (scrim + surface) sits strictly ABOVE every currently-open sheet — the
+// fix for "the upper sheet's scrim doesn't cover the lower sheet". A monotonic
+// counter (not openCount) so an out-of-order close can't hand a new sheet a level
+// that collides with one still open. Reset to 0 once the stack fully drains, so
+// z stays bounded across many open/close cycles (never creeps into the modal
+// band). Real stacks are 2-3 deep.
+let nextLevel = 0;
 const listeners = new Set<(open: boolean) => void>();
 
 function notify(): void {
@@ -20,14 +28,24 @@ function notify(): void {
   listeners.forEach((l) => l(anyOpen));
 }
 
-/** Called by DetentSheet while it is open; returns the matching "closed"
- *  decrement to run on cleanup. */
-export function markDetentSheetOpen(): () => void {
+/** Called by DetentSheet while it is open. Returns this sheet's `level` in the
+ *  open stack (0 = bottom-most) — which drives its z-index so a later sheet
+ *  occludes an earlier one — and the matching `close` decrement for cleanup. */
+export function markDetentSheetOpen(): { level: number; close: () => void } {
+  const level = nextLevel;
+  nextLevel += 1;
   openCount += 1;
   notify();
-  return () => {
-    openCount -= 1;
-    notify();
+  return {
+    level,
+    close: (): void => {
+      openCount -= 1;
+      if (openCount <= 0) {
+        openCount = 0;
+        nextLevel = 0; // stack fully drained → reset levels (keep z bounded)
+      }
+      notify();
+    },
   };
 }
 
