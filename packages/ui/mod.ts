@@ -4,6 +4,15 @@ export { subscribeAnyDetentSheetOpen, useAnyDetentSheetOpen } from "./detent-she
 export { BottomSheet, type BottomSheetProps } from "./bottom-sheet.tsx";
 export { SettingsSheet, type SettingsSheetProps, ThemeModeControl } from "./settings-sheet.tsx";
 export { NavShell, type NavShellApi, type NavShellProps } from "./nav-shell.tsx";
+export {
+  type Banner,
+  type BannerKind,
+  ConnectionBanner,
+  type ConnectionBannerProps,
+  type ConnectionStore,
+  type ConnectionStoreOptions,
+  createConnectionStore,
+} from "./connection-banner.tsx";
 export { type GalleryImage, ImageLightbox, type ImageLightboxProps } from "./image-lightbox.tsx";
 export { createSharedTheme, type SharedThemeOptions } from "./theme.ts";
 export { type ThemeModeState, useThemeMode } from "./theme-mode.ts";
