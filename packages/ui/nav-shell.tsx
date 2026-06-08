@@ -253,22 +253,27 @@ export function NavShell(props: NavShellProps): ReactNode {
             ? {
               // Frosted overlay: pin the bar absolute to its edge OVER the
               // (position:relative) content region, so the scroller fills
-              // full-height under it. Higher alpha than the status-bar strip
-              // (0.78 vs 0.5) because real body text scrolls under THIS bar —
-              // the controls' own legibility comes first; blur+saturate match
-              // the status strip so the two read as one glass layer. Use
-              // background.default (the page bg the text sits on), not paper.
-              // Keep the edge: a top bar's downward shadow / a bottom bar's
-              // hairline still marks the boundary over a busy column.
+              // full-height under it. Milky tint + blur 30 / saturate 200 read as
+              // thick frosted glass (not a clear pane) over a busy text column —
+              // and let a same-recipe frosted surface stacked right above it (an
+              // app's transport) blend into ONE continuous slab. A BOTTOM bar
+              // therefore carries NO border: a hairline would re-introduce the
+              // seam the single glass look removes. background.default (the page
+              // bg the text sits on), not paper.
               position: "absolute",
               left: 0,
               right: 0,
               ...(bottom ? { bottom: 0 } : { top: 0 }),
-              bgcolor: (t) => alpha(t.palette.background.default, 0.78),
-              backdropFilter: "blur(24px) saturate(180%)",
-              WebkitBackdropFilter: "blur(24px) saturate(180%)",
+              bgcolor: (t) =>
+                alpha(
+                  t.palette.background.default,
+                  t.palette.mode === "dark" ? 0.72 : 0.76,
+                ),
+              backdropFilter: "blur(30px) saturate(200%)",
+              WebkitBackdropFilter: "blur(30px) saturate(200%)",
+              // Top bar keeps its downward elevation shadow to mark the edge; a
+              // bottom bar stays flat + borderless (the glass tint is the edge).
               boxShadow: bottom ? "none" : 3,
-              ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
             }
             : {
               position: "relative",
