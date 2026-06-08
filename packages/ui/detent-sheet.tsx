@@ -104,6 +104,18 @@ const Z = 1250;
 const SAFE_BOTTOM = "calc(16px + env(safe-area-inset-bottom, 0px))";
 const SAFE_TOP = "env(safe-area-inset-top, 0px)";
 
+// `cover` variant — a near-full-screen sheet (the 微信读书 / iOS pageSheet feel):
+// it rises to leave only a thin sliver of the dimmed page at the top (clearing
+// the notch / Dynamic Island), reads as a frosted-glass layer, and has a single
+// full detent (flick down to dismiss — no medium peek). `100dvh` (the DYNAMIC
+// viewport) tracks the visible height under the iOS Safari toolbar, so the top
+// gap is exact where a `100vh` would overflow. Capped + centred so it's a wide
+// edge-to-edge cover on a phone but a centred card on an iPad, not a stretched
+// full-width slab.
+const COVER_TOP = "calc(env(safe-area-inset-top, 0px) + 12px)";
+const COVER_HEIGHT = `calc(100dvh - ${COVER_TOP})`;
+const COVER_MAX_WIDTH = 720;
+
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
 // Composite an opaque `#rgb` / `#rrggbb` base UNDER black at `dim` (0..1) →
@@ -184,18 +196,36 @@ export interface DetentSheetProps {
    *  `background.paper`, and the scrim lightens to match. Same recipe as the app
    *  bars (alpha tint + `blur(30px) saturate(200%)`). Default false = solid. */
   readonly frosted?: boolean | undefined;
+  /** Cover variant: a near-full-screen frosted sheet (微信读书 / iOS pageSheet
+   *  feel) — rises to leave a thin sliver of dimmed page at the top, single full
+   *  detent (flick to dismiss, no peek), capped + centred on a tablet. Implies
+   *  the frosted material. Bottom-anchored only. Default false. */
+  readonly cover?: boolean | undefined;
 }
 
 export function DetentSheet(
-  { open, onClose, ariaLabel, anchor = "bottom", header, children, footer, surfaceColor, frosted = false }:
-    DetentSheetProps,
+  {
+    open,
+    onClose,
+    ariaLabel,
+    anchor = "bottom",
+    header,
+    children,
+    footer,
+    surfaceColor,
+    frosted = false,
+    cover = false,
+  }: DetentSheetProps,
 ): ReactNode {
   // +1 hides downward (bottom sheet), −1 hides upward (top sheet). All geometry
   // is mirrored by this; `closedPx` (the slide distance) stays positive.
   const sign = anchor === "top" ? -1 : 1;
   const isTop = anchor === "top";
+  // `cover` is a bottom-only variant and always uses the frosted material.
+  const isCover = cover && !isTop;
+  const useFrost = frosted || isCover;
   // Lighter scrim under the frosted material so the page reads THROUGH the glass.
-  const scrimMax = frosted ? FROSTED_SCRIM_MAX : SCRIM_MAX;
+  const scrimMax = useFrost ? FROSTED_SCRIM_MAX : SCRIM_MAX;
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
@@ -255,7 +285,9 @@ export function DetentSheet(
     // Two levels only when the content is tall enough for a peek to be a
     // distinct stop; otherwise a single content-sized level. Detents are
     // translateY values, ordered most-hidden → full (0).
-    const hasPeek = closedPx >= PEEK_ENABLE_FRACTION * h;
+    // A cover is a single full level (flick down dismisses) — never a peek, even
+    // though it's tall enough to otherwise earn one.
+    const hasPeek = !isCover && closedPx >= PEEK_ENABLE_FRACTION * h;
     const peekY = sign * (closedPx - PEEK_FRACTION * h);
     const detents = hasPeek ? [peekY, 0] : [0];
     geomRef.current = { detents, closedPx };
@@ -263,7 +295,7 @@ export function DetentSheet(
     paint(sign * closedPx, false); // seed closed (no transition)…
     const id = globalThis.requestAnimationFrame(() => paint(openY, true)); // …then slide open
     return () => globalThis.cancelAnimationFrame(id);
-  }, [open, paint, sign]);
+  }, [open, paint, sign, isCover]);
 
   const dismiss = useCallback((): void => {
     paint(signRef.current * geomRef.current.closedPx, true);
@@ -440,8 +472,9 @@ export function DetentSheet(
       sx={{
         // basis:auto so the body takes its content height (the sheet fits
         // content); shrink:1 + minHeight:0 so it shrinks and scrolls only once
-        // the content hits the sheet's maxHeight.
-        flex: "0 1 auto",
+        // the content hits the sheet's maxHeight. A cover is a FIXED tall sheet,
+        // so the body GROWS to fill it (flex:1) and scrolls within.
+        flex: isCover ? "1 1 auto" : "0 1 auto",
         minHeight: 0,
         overflowY: "auto",
         // No horizontal padding: the sheet doesn't impose a side gutter on its
@@ -493,8 +526,18 @@ export function DetentSheet(
           left: 0,
           right: 0,
           ...(isTop ? { top: 0 } : { bottom: 0 }),
-          // Content-driven height, capped so a scrim strip always shows.
-          maxHeight: `${String(MAX_FRACTION * 100)}vh`,
+          // Cover: a fixed near-full height (a thin top sliver of dimmed page
+          // stays), capped + centred so it's a wide cover on a phone but a card
+          // on a tablet. Otherwise: content-driven height, capped so a scrim
+          // strip always shows.
+          ...(isCover
+            ? {
+              height: COVER_HEIGHT,
+              maxHeight: COVER_HEIGHT,
+              maxWidth: COVER_MAX_WIDTH,
+              marginInline: "auto",
+            }
+            : { maxHeight: `${String(MAX_FRACTION * 100)}vh` }),
           zIndex: z + 1,
           willChange: "transform",
           contain: "layout paint",
@@ -506,7 +549,7 @@ export function DetentSheet(
           // app bars): a milky tint over a heavy blur+saturate, so the page diffuses
           // through it. `backgroundImage:none` either way (no elevation overlay).
           backgroundImage: "none",
-          ...(frosted
+          ...(useFrost
             ? {
               bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.72 : 0.76),
               backdropFilter: "blur(30px) saturate(200%)",
