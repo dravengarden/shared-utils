@@ -5,8 +5,16 @@
 // version — so a client that cached the pre-restart version still converges and
 // the version clock stays monotonic.
 
-import { assertEquals } from "jsr:@std/assert";
-import { type CommitRecord, createArbiter, createClient, hashValue, type Mutators } from "../mod.ts";
+import { assertEquals, assertExists } from "jsr:@std/assert";
+import {
+  type ClientSnapshot,
+  type CommitRecord,
+  createArbiter,
+  createClient,
+  hashValue,
+  type LocalPersistence,
+  type Mutators,
+} from "../mod.ts";
 
 interface Doc {
   readonly title: string;
@@ -95,6 +103,34 @@ Deno.test("onDiverge fires when a patch's valueHash disagrees with the value", (
     apply: (): Doc => ({ title: "x", n: 1 }),
   });
   assertEquals(fired !== null, true);
+});
+
+Deno.test("LocalPersistence: flush saves {base, pending}; hydrate restores them", async () => {
+  let stored: ClientSnapshot<Doc> | null = null;
+  const local: LocalPersistence<Doc> = {
+    load: (): Promise<ClientSnapshot<Doc> | null> => Promise.resolve(stored),
+    save: (s): Promise<void> => {
+      stored = s;
+      return Promise.resolve();
+    },
+  };
+  const initial = { version: 3, value: { title: "Hi", n: 1 } };
+  const c1 = createClient<Doc, typeof mutators>({ clientId: "c", mutators, initial, local });
+  c1.mutate("bump", { by: 4 }); // pending → view n:5
+  await c1.flush();
+  assertExists(stored);
+
+  // Reload: a fresh client hydrates base + pending from the durable outbox.
+  const c2 = createClient<Doc, typeof mutators>({
+    clientId: "c",
+    mutators,
+    initial: { version: 0, value: { title: "", n: 0 } },
+    local,
+  });
+  await c2.hydrate();
+  assertEquals(c2.version(), 3);
+  assertEquals(c2.view(), { title: "Hi", n: 5 }); // restored base + replayed pending
+  assertEquals(c2.pending().length, 1); // the optimistic bump survived the reload
 });
 
 function unreachable(): never {

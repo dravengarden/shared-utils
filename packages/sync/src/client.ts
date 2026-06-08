@@ -8,7 +8,16 @@
 
 import { hashValue } from "./hash.ts";
 import { applyMutation, type ArgsOf, type Mutators } from "./mutators.ts";
-import type { ClientId, Mutation, MutationId, Patch, SyncState, Version } from "./types.ts";
+import type {
+  ClientId,
+  ClientSnapshot,
+  LocalPersistence,
+  Mutation,
+  MutationId,
+  Patch,
+  SyncState,
+  Version,
+} from "./types.ts";
 
 /** Recursively freeze a value so a mutator that MUTATES its input (the cardinal
  *  sin — it breaks replay convergence) throws in dev instead of silently
@@ -61,6 +70,16 @@ export interface Client<T, M extends Mutators<T>> {
    *  replayed on the forced base. Without `force`, only a strictly-newer version
    *  advances the base (live-stream ordering). */
   applyPatch(patch: Patch<T>, opts?: { force?: boolean }): void;
+  /** Restore base + pending from the configured `LocalPersistence` (instant first
+   *  paint on reload + a durable outbox for unconfirmed optimistic mutations).
+   *  Call once before connecting; a no-op if no persistence is configured or
+   *  nothing is stored. The restored pending should then be re-sent (see the
+   *  reconnect resend) — its ids keep the arbiter idempotent. */
+  hydrate(): Promise<void>;
+  /** Persist the current snapshot NOW, bypassing the save debounce — call on
+   *  `pagehide`/`beforeunload` so an in-flight change isn't lost. No-op without
+   *  persistence. */
+  flush(): Promise<void>;
 }
 
 export interface ClientOpts<T, M extends Mutators<T>> {
@@ -81,10 +100,17 @@ export interface ClientOpts<T, M extends Mutators<T>> {
   /** Dev-only: deep-freeze the confirmed base so a mutator that mutates its
    *  input throws. O(value) per patch; leave off in production. */
   freezeForDev?: boolean;
+  /** App-side persistence backend (e.g. @shared-utils/sync-idb). When set, the
+   *  client debounce-saves {base, pending} on every change and can `hydrate()`
+   *  from it. Omit to keep the client purely in-memory (the default). */
+  local?: LocalPersistence<T>;
+  /** Debounce window (ms) for persistence saves. Default 250. */
+  saveDebounceMs?: number;
 }
 
 export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): Client<T, M> {
-  const { clientId, mutators, onChange, freezeForDev } = opts;
+  const { clientId, mutators, onChange, freezeForDev, local } = opts;
+  const saveDebounceMs = opts.saveDebounceMs ?? 250;
   const onDiverge = opts.onDiverge ??
     ((d: { version: Version; expected: string; got: string }): void => {
       console.error(`sync: divergence at v${String(d.version)}: expected ${d.expected}, got ${d.got}`);
@@ -98,6 +124,22 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
   let base: SyncState<T> = freeze(opts.initial);
   let queue: Mutation[] = [];
   let viewValue: T = base.value;
+
+  // Debounced app-side persistence of {base, pending}. No-op without `local`.
+  let saveTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  const snapshot = (): ClientSnapshot<T> => ({ base, pending: [...queue] });
+  const scheduleSave = (): void => {
+    if (local === undefined) {
+      return;
+    }
+    if (saveTimer !== undefined) {
+      clearTimeout(saveTimer);
+    }
+    saveTimer = setTimeout(() => {
+      saveTimer = undefined;
+      void local.save(snapshot());
+    }, saveDebounceMs);
+  };
 
   const recompute = (): void => {
     let v = base.value;
@@ -119,6 +161,7 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       // of the already-replayed queue), equivalent to a full recompute.
       viewValue = applyMutation(mutators, viewValue, m);
       onChange?.(viewValue);
+      scheduleSave();
       return m;
     },
 
@@ -134,6 +177,7 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       queue = next;
       recompute();
       onChange?.(viewValue);
+      scheduleSave();
     },
 
     bump(id: MutationId): void {
@@ -148,6 +192,7 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       queue = [...queue.slice(0, i), ...queue.slice(i + 1), m];
       recompute();
       onChange?.(viewValue);
+      scheduleSave();
     },
 
     applyPatch(patch: Patch<T>, applyOpts?: { force?: boolean }): void {
@@ -190,7 +235,33 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       if (changed) {
         recompute();
         onChange?.(viewValue);
+        scheduleSave();
       }
+    },
+
+    async hydrate(): Promise<void> {
+      if (local === undefined) {
+        return;
+      }
+      const snap = await local.load();
+      if (snap === null) {
+        return;
+      }
+      base = freeze(snap.base);
+      queue = [...snap.pending];
+      recompute();
+      onChange?.(viewValue);
+    },
+
+    async flush(): Promise<void> {
+      if (local === undefined) {
+        return;
+      }
+      if (saveTimer !== undefined) {
+        clearTimeout(saveTimer);
+        saveTimer = undefined;
+      }
+      await local.save(snapshot());
     },
   };
 }

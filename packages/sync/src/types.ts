@@ -65,3 +65,24 @@ export interface CommitRecord<T> {
   readonly valueHash: string;
   readonly mutation: Mutation;
 }
+
+/** A serializable snapshot of a CLIENT's local state — the confirmed base + the
+ *  still-pending optimistic mutations — for app-side persistence. Restoring it
+ *  gives an instant first paint on reload AND survives unconfirmed optimistic
+ *  mutations (a durable outbox: they replay + re-send after the reload). All
+ *  fields are JSON-plain (pending mutations replay by `name`, so mutator names
+ *  are schema — renaming one breaks a persisted snapshot). */
+export interface ClientSnapshot<T> {
+  readonly base: SyncState<T>;
+  readonly pending: readonly Mutation[];
+}
+
+/** Pluggable app-side persistence backend (the seam for @shared-utils/sync-idb,
+ *  React-Native AsyncStorage, …). The client calls `save` DEBOUNCED on every
+ *  change and `load` once on `hydrate()`; the core never assumes a platform.
+ *  Async by contract — IndexedDB and friends are async; a stub in-memory impl
+ *  satisfies it for tests. */
+export interface LocalPersistence<T> {
+  load(): Promise<ClientSnapshot<T> | null>;
+  save(snapshot: ClientSnapshot<T>): Promise<void>;
+}

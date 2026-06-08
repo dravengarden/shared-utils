@@ -17,4 +17,14 @@ export { applyMutation } from "./src/mutators.ts";
 export type { ArgsOf, Mutator, Mutators } from "./src/mutators.ts";
 export { snapshotPatch } from "./src/patch/snapshot.ts";
 export { hashValue } from "./src/hash.ts";
-export type { ClientId, CommitRecord, Mutation, MutationId, Patch, SyncState, Version } from "./src/types.ts";
+export type {
+  ClientId,
+  ClientSnapshot,
+  CommitRecord,
+  LocalPersistence,
+  Mutation,
+  MutationId,
+  Patch,
+  SyncState,
+  Version,
+} from "./src/types.ts";
