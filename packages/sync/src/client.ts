@@ -6,8 +6,23 @@
 // replayed on top — converging on the arbiter's order with no lost update and
 // no ghost (a confirmed mutation is dropped from pending exactly once).
 
+import { hashValue } from "./hash.ts";
 import { applyMutation, type ArgsOf, type Mutators } from "./mutators.ts";
 import type { ClientId, Mutation, MutationId, Patch, SyncState, Version } from "./types.ts";
+
+/** Recursively freeze a value so a mutator that MUTATES its input (the cardinal
+ *  sin — it breaks replay convergence) throws in dev instead of silently
+ *  corrupting state. O(value); gate behind `freezeForDev`, off in prod. */
+function deepFreeze<V>(value: V): V {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  Object.freeze(value);
+  for (const k of Object.keys(value as Record<string, unknown>)) {
+    deepFreeze((value as Record<string, unknown>)[k]);
+  }
+  return value;
+}
 
 export interface Client<T, M extends Mutators<T>> {
   /** The value to render: confirmed base + replayed pending. */
@@ -35,14 +50,29 @@ export interface ClientOpts<T, M extends Mutators<T>> {
   /** Mutation-id factory (default `clientId:counter`). Inject for deterministic
    *  tests. Must be globally unique across clients. */
   newId?: () => MutationId;
+  /** Called when an applied patch's `valueHash` disagrees with this client's own
+   *  value at that version (no pending) — i.e. a divergence/integrity failure
+   *  (corrupt wire round-trip, non-deterministic mutator, …). Default:
+   *  `console.error`. Throw here to fail loud in tests. */
+  onDiverge?: (detail: { version: Version; expected: string; got: string }) => void;
+  /** Dev-only: deep-freeze the confirmed base so a mutator that mutates its
+   *  input throws. O(value) per patch; leave off in production. */
+  freezeForDev?: boolean;
 }
 
 export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): Client<T, M> {
-  const { clientId, mutators, onChange } = opts;
+  const { clientId, mutators, onChange, freezeForDev } = opts;
+  const onDiverge = opts.onDiverge ??
+    ((d: { version: Version; expected: string; got: string }): void => {
+      console.error(`sync: divergence at v${String(d.version)}: expected ${d.expected}, got ${d.got}`);
+    });
   let seq = 0;
   const newId = opts.newId ?? ((): MutationId => `${clientId}:${String(++seq)}`);
 
-  let base: SyncState<T> = opts.initial;
+  const freeze = (s: SyncState<T>): SyncState<T> =>
+    freezeForDev ? { version: s.version, value: deepFreeze(s.value) } : s;
+
+  let base: SyncState<T> = freeze(opts.initial);
   let queue: Mutation[] = [];
   let viewValue: T = base.value;
 
@@ -89,8 +119,22 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       // older/duplicate snapshot's value is ignored (idempotent). (An op-patch
       // would additionally require fromVersion === base.version + gap → resync.)
       if (patch.toVersion > base.version) {
-        base = { version: patch.toVersion, value: patch.apply(base.value) };
+        base = freeze({ version: patch.toVersion, value: patch.apply(base.value) });
         changed = true;
+      }
+      // Machine-checked convergence: once we're AT this patch's version with NO
+      // pending, our base IS the authoritative value, so its hash must match the
+      // patch's. A mismatch means a corrupt round-trip or a non-deterministic
+      // mutator — surface it loudly rather than silently diverge.
+      if (
+        patch.valueHash !== undefined &&
+        queue.length === 0 &&
+        base.version === patch.toVersion
+      ) {
+        const got = hashValue(base.value);
+        if (got !== patch.valueHash) {
+          onDiverge({ version: patch.toVersion, expected: patch.valueHash, got });
+        }
       }
       if (changed) {
         recompute();

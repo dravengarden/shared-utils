@@ -42,5 +42,26 @@ export interface Patch<T> {
   readonly fromVersion: Version;
   readonly toVersion: Version;
   readonly confirmed: readonly MutationId[];
+  /** Content hash of the authoritative value at `toVersion` (see hash.ts). The
+   *  client asserts its own value matches once it is at this version with no
+   *  pending — a machine-checked convergence/integrity guard (catches a value
+   *  that didn't survive the wire/pg round-trip, and gives a future op-patch's
+   *  incremental fold a verifier for free). Optional: a patch from a minimal
+   *  arbiter (e.g. an early cowboy daemon) may omit it. */
+  readonly valueHash?: string;
   apply(prev: T): T;
+}
+
+/** What the arbiter emits on every accepted mutation — the single seam for
+ *  PERSISTENCE (write `{version, value, valueHash}` to pg) and LOGGING (append
+ *  `{version, mutation, valueHash}` to an op-log / VictoriaLogs). The app fills
+ *  `onCommit`; the core stays pure + synchronous and never blocks on I/O (do the
+ *  write fire-and-forget inside the hook). Storing the DELTA (`mutation`) not the
+ *  whole past value is what keeps the log small; `valueHash` lets a reload verify
+ *  integrity and lets an AI debugger bisect a divergence by version. */
+export interface CommitRecord<T> {
+  readonly version: Version;
+  readonly value: T;
+  readonly valueHash: string;
+  readonly mutation: Mutation;
 }

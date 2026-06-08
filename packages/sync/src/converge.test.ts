@@ -93,6 +93,12 @@ function episode(seed: number, drop: boolean): void {
       mutators,
       initial: arbiter.current(),
       newId: (): string => `m${String(++mid)}`,
+      // Strengthen the fuzz: freeze the base (any mutator that mutates its input
+      // throws) and turn a valueHash mismatch into a test failure.
+      freezeForDev: true,
+      onDiverge: (d): never => {
+        throw new Error(`diverge at v${String(d.version)}: ${d.expected} != ${d.got}`);
+      },
     }));
 
   const inbox: Delivery[] = [];

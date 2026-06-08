@@ -16,4 +16,5 @@ export type { Arbiter, ArbiterOpts } from "./src/arbiter.ts";
 export { applyMutation } from "./src/mutators.ts";
 export type { ArgsOf, Mutator, Mutators } from "./src/mutators.ts";
 export { snapshotPatch } from "./src/patch/snapshot.ts";
-export type { ClientId, Mutation, MutationId, Patch, SyncState, Version } from "./src/types.ts";
+export { hashValue } from "./src/hash.ts";
+export type { ClientId, CommitRecord, Mutation, MutationId, Patch, SyncState, Version } from "./src/types.ts";
