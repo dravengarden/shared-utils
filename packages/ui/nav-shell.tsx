@@ -3,7 +3,7 @@
 // One nav behavior for every app, and NO floating affordances (they read as
 // gimmicky and, over a reading column, hurt usability). The shape:
 //
-//   • A thin bar (a layout sibling, never an overlay) holds the menu toggle,
+//   • A thin bar (a solid flex sibling by default) holds the menu toggle,
 //     the title, and app actions. It sits at the top by default; `barPosition`
 //     can drop it to the bottom for a mobile-browser-style bar.
 //   • Desktop (≥ breakpoint): a persistent left sidebar with the app's nav
@@ -15,11 +15,20 @@
 // The shell owns the frame + responsive state (+ collapse persistence); each
 // app supplies its nav body via `nav` and its content via `children`, so apps
 // stay distinct while the chrome is identical.
+//
+// `barFrosted` (opt-in, default OFF) turns the bar into an iOS-style frosted-
+// glass OVERLAY that content scrolls UNDER, instead of the solid flex sibling.
+// Only apps that want translucency (liveview's reader) pass it; every other app
+// (cowboy, …) keeps the solid bar with byte-for-byte the same behavior. When on,
+// the bar is `position:absolute` pinned to its edge over a `position:relative`
+// content region, and its measured height is published as the CSS custom
+// property `--shell-bar-h` on that region so the app's scrollers can pad by it
+// (so content clears the floating bar yet still scrolls under it).
 
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import MenuIcon from "@mui/icons-material/Menu";
-import { Box, Drawer, IconButton, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
-import { type ReactNode, useCallback, useState } from "react";
+import { alpha, Box, Drawer, IconButton, Tooltip, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { DetentSheet } from "./detent-sheet.tsx";
 
@@ -55,6 +64,13 @@ export interface NavShellProps {
    *  and the bar owns the home-indicator inset instead of the notch. Apps gate
    *  this on their own mobile tier — desktop is best left "top". */
   readonly barPosition?: "top" | "bottom";
+  /** Opt-in (default OFF). When true the bar is an iOS-style frosted-glass
+   *  OVERLAY that content scrolls UNDER, not a solid flex sibling: it's pinned
+   *  absolute to its edge over the content region, and its rendered height is
+   *  published as `--shell-bar-h` on that region so the app's scrollers can
+   *  reserve space (`padding-{top,bottom}: var(--shell-bar-h)`). OFF keeps the
+   *  unchanged solid-sibling bar. */
+  readonly barFrosted?: boolean;
   /** The main content area. */
   readonly children: ReactNode;
 }
@@ -68,10 +84,47 @@ function saveCollapsed(appKey: string, collapsed: boolean): void {
 }
 
 export function NavShell(props: NavShellProps): ReactNode {
-  const { appKey, title, navWidth = 280, breakpoint = "lg", nav, actions, barPosition = "top", children } = props;
+  const {
+    appKey,
+    title,
+    navWidth = 280,
+    breakpoint = "lg",
+    nav,
+    actions,
+    barPosition = "top",
+    barFrosted = false,
+    children,
+  } = props;
   const bottom = barPosition === "bottom";
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down(breakpoint));
+
+  // Frosted overlay: measure the bar's RENDERED height (it varies with the
+  // safe-area inset, dynamic title content, and rotation) and publish it as
+  // `--shell-bar-h` on the content region, so the app's scrollers can pad by an
+  // always-exact value rather than a guessed constant. A ResizeObserver keeps it
+  // live; off (the solid path) neither ref is wired, so this costs nothing.
+  const barRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!barFrosted) {
+      return;
+    }
+    const barEl = barRef.current;
+    const contentEl = contentRef.current;
+    if (!barEl || !contentEl) {
+      return;
+    }
+    const publish = (): void => {
+      contentEl.style.setProperty("--shell-bar-h", `${barEl.offsetHeight}px`);
+    };
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(barEl);
+    return () => {
+      ro.disconnect();
+    };
+  }, [barFrosted]);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => loadCollapsed(appKey));
@@ -122,26 +175,48 @@ export function NavShell(props: NavShellProps): ReactNode {
   let titleSlot: ReactNode = <Box sx={{ flex: 1 }} />;
   if (typeof title === "string") {
     titleSlot = (
-      <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}>
+      <Typography
+        variant="subtitle2"
+        noWrap
+        sx={{ fontWeight: 600, minWidth: 0, flex: 1 }}
+      >
         {title}
       </Typography>
     );
   } else if (title != null) {
     titleSlot = (
-      <Box sx={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <Box
+        sx={{
+          minWidth: 0,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+        }}
+      >
         {title}
       </Box>
     );
   }
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100dvh",
+        overflow: "hidden",
+      }}
+    >
       <Box
         component="header"
+        ref={barFrosted ? barRef : undefined}
         sx={{
           flexShrink: 0,
           // Bottom mode flips the bar below the content via flex order (one
           // bar, not a second element), so reading order in the DOM is stable.
+          // (Frosted overrides position to absolute below; `order` is harmless
+          // on an absolute box and keeps the non-frosted path untouched.)
           order: bottom ? 2 : 0,
           display: "flex",
           alignItems: "center",
@@ -152,22 +227,45 @@ export function NavShell(props: NavShellProps): ReactNode {
           pl: "max(env(safe-area-inset-left, 0px), 12px)",
           pr: "max(env(safe-area-inset-right, 0px), 12px)",
           minHeight: 48,
-          bgcolor: "background.paper",
           // Separator: a top bar floats over the content (Material elevation,
           // shadow falling down). A BOTTOM bar gets a flat 1px divider instead —
           // an upward drop-shadow there reads heavy and muddy over the reading
           // surface; a hairline rule is the cleaner, calmer cut. position+zIndex
           // so a top bar's shadow paints over the content (flex siblings would
           // otherwise share a layer).
-          position: "relative",
           zIndex: (t) => t.zIndex.appBar,
-          boxShadow: bottom ? "none" : 3,
-          ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
           // Top bar owns the notch (pt only). Bottom bar is padded symmetrically
           // (see bottomPad) so its content is vertically centred and clears the
           // home indicator.
           pt: bottom ? bottomPad : "env(safe-area-inset-top, 0px)",
           pb: bottom ? bottomPad : 0,
+          ...(barFrosted
+            ? {
+              // Frosted overlay: pin the bar absolute to its edge OVER the
+              // (position:relative) content region, so the scroller fills
+              // full-height under it. Higher alpha than the status-bar strip
+              // (0.78 vs 0.5) because real body text scrolls under THIS bar —
+              // the controls' own legibility comes first; blur+saturate match
+              // the status strip so the two read as one glass layer. Use
+              // background.default (the page bg the text sits on), not paper.
+              // Keep the edge: a top bar's downward shadow / a bottom bar's
+              // hairline still marks the boundary over a busy column.
+              position: "absolute",
+              left: 0,
+              right: 0,
+              ...(bottom ? { bottom: 0 } : { top: 0 }),
+              bgcolor: (t) => alpha(t.palette.background.default, 0.78),
+              backdropFilter: "blur(24px) saturate(180%)",
+              WebkitBackdropFilter: "blur(24px) saturate(180%)",
+              boxShadow: bottom ? "none" : 3,
+              ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
+            }
+            : {
+              position: "relative",
+              bgcolor: "background.paper",
+              boxShadow: bottom ? "none" : 3,
+              ...(bottom ? { borderTop: 1, borderColor: "divider" } : {}),
+            }),
         }}
       >
         <Tooltip title={sidebarShown ? "Collapse" : "Menu"}>
@@ -185,12 +283,32 @@ export function NavShell(props: NavShellProps): ReactNode {
           </IconButton>
         </Tooltip>
         {titleSlot}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+            flexShrink: 0,
+          }}
+        >
           {actions}
         </Box>
       </Box>
 
-      <Box sx={{ order: bottom ? 1 : 0, display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <Box
+        ref={barFrosted ? contentRef : undefined}
+        sx={{
+          order: bottom ? 1 : 0,
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+          // Frosted: this region is the bar's positioning context (the bar is
+          // absolute within it) AND carries the published --shell-bar-h that the
+          // app's scrollers pad by. The solid path leaves it static (unchanged).
+          ...(barFrosted ? { position: "relative" } : {}),
+        }}
+      >
         {sidebarShown && (
           <Box
             sx={{
@@ -218,7 +336,11 @@ export function NavShell(props: NavShellProps): ReactNode {
         }
         {bottom
           ? (
-            <DetentSheet open={isMobile && mobileOpen} onClose={closeMobile} ariaLabel="Navigation">
+            <DetentSheet
+              open={isMobile && mobileOpen}
+              onClose={closeMobile}
+              ariaLabel="Navigation"
+            >
               {navBody}
             </DetentSheet>
           )
@@ -243,7 +365,15 @@ export function NavShell(props: NavShellProps): ReactNode {
             </Drawer>
           )}
 
-        <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
           {children}
         </Box>
       </Box>
