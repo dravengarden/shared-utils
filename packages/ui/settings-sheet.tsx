@@ -42,20 +42,26 @@ export function SettingsSheet({ title = "Settings", children, wide = false }: Se
   return (
     <>
       <Tooltip title="Settings">
-        {/* ≥40px target on touch, compact on desktop. */}
+        {
+          /* Why the sm tier is bigger (48 vs 40/36): on a tablet (iPad) the gear
+            sits near a rounded screen corner and is hard to hit at 40px. sm=600
+            (MUI default) → tablet/iPad gets a 48px target; iPhone portrait (<600)
+            stays 40; desktop (≥1200) stays the compact 36. */
+        }
         <IconButton
           aria-label="settings"
           onClick={() => setOpen(true)}
           size="small"
-          sx={{ width: { xs: 40, lg: 36 }, height: { xs: 40, lg: 36 } }}
+          sx={{ width: { xs: 40, sm: 48, lg: 36 }, height: { xs: 40, sm: 48, lg: 36 } }}
         >
           {
             /* Fixed px, not `fontSize="small"` (1.25rem): the settings gear is
               app chrome, so it must stay put when a host app scales its root
               font-size for content. 20px == the rem default, so apps that
-              don't scale fonts see no change. */
+              don't scale fonts see no change. Bump to 24 at sm so the icon
+              isn't lost in the larger 48px tablet button. */
           }
-          <SettingsIcon sx={{ fontSize: 20 }} />
+          <SettingsIcon sx={{ fontSize: { xs: 20, sm: 24, lg: 20 } }} />
         </IconButton>
       </Tooltip>
       {

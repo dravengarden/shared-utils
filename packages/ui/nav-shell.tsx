@@ -224,8 +224,18 @@ export function NavShell(props: NavShellProps): ReactNode {
           // Keep the end buttons (menu / actions) off the screen edge so they
           // clear the display's rounded corners and a landscape notch — pull in
           // the safe-area inset, floored to a comfortable 12px in portrait.
-          pl: "max(env(safe-area-inset-left, 0px), 12px)",
-          pr: "max(env(safe-area-inset-right, 0px), 12px)",
+          // On the tablet tier (sm=600+, i.e. iPad) raise the floor to 20px so
+          // the end controls (the settings gear especially) sit further from the
+          // rounded corner and are easier to hit; iPhone (<sm) and desktop keep
+          // 12px. Safe-area flooring semantics unchanged (ui.md §7).
+          pl: {
+            xs: "max(env(safe-area-inset-left, 0px), 12px)",
+            sm: "max(env(safe-area-inset-left, 0px), 20px)",
+          },
+          pr: {
+            xs: "max(env(safe-area-inset-right, 0px), 12px)",
+            sm: "max(env(safe-area-inset-right, 0px), 20px)",
+          },
           minHeight: 48,
           // Separator: a top bar floats over the content (Material elevation,
           // shadow falling down). A BOTTOM bar gets a flat 1px divider instead —
