@@ -38,3 +38,36 @@ Deno.test("confirmed pending drops once; duplicate patch is a no-op", () => {
   c.applyPatch(snapshotPatch(1, { n: 5 }, ["A"])); // duplicate delivery
   assertEquals(c.view(), { n: 5 }); // no double-apply (version not newer)
 });
+
+Deno.test("bump: re-anchors a pending mutation to the tail (retry-to-end)", () => {
+  type L = readonly string[];
+  const lm = { push: (l: L, a: { v: string }): L => [...l, a.v] } satisfies Mutators<L>;
+  const c = createClient<L, typeof lm>({ clientId: "c", mutators: lm, initial: { version: 0, value: [] } });
+  const a = c.mutate("push", { v: "A" });
+  c.mutate("push", { v: "B" });
+  assertEquals(c.view(), ["A", "B"]);
+  c.bump(a.id); // retry A → re-anchored after everything
+  assertEquals(c.view(), ["B", "A"]);
+  assertEquals(c.pending().length, 2); // same id, still one pending each (no dup)
+  c.bump(a.id); // already last → no-op
+  assertEquals(c.view(), ["B", "A"]);
+  c.bump("nope"); // unknown id → no-op
+  assertEquals(c.view(), ["B", "A"]);
+});
+
+Deno.test("confirm: out-of-band ack drops pending, no base change, idempotent", () => {
+  const c = createClient<S, typeof muts>({ clientId: "c", mutators: muts, initial });
+  const a = c.mutate("add", { d: 5 }); // pending A → view 5
+  c.mutate("add", { d: 3 }); // pending B → view 8
+  assertEquals(c.view(), { n: 8 });
+  assertEquals(c.version(), 0);
+  c.confirm([a.id]); // A acked by a SEPARATE signal (not this state's patch)
+  assertEquals(c.pending().length, 1); // only B left
+  assertEquals(c.view(), { n: 3 }); // base 0 + replayed B(+3); A not double-counted
+  assertEquals(c.version(), 0); // no base/version change
+  c.confirm([a.id]); // not pending anymore → no-op
+  assertEquals(c.pending().length, 1);
+  // A later confirmed by a real patch too: already gone, value just advances.
+  c.applyPatch(snapshotPatch(1, { n: 5 }, [a.id]));
+  assertEquals(c.view(), { n: 8 }); // base {n:5} (incl A) + replayed B(+3)
+});

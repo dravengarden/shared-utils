@@ -35,6 +35,19 @@ export interface Client<T, M extends Mutators<T>> {
    *  arbiter. Re-send the SAME object on retry — its id makes the arbiter
    *  idempotent. */
   mutate<K extends keyof M & string>(name: K, args: ArgsOf<T, M, K>): Mutation<ArgsOf<T, M, K>>;
+  /** Drop pending mutations confirmed OUT-OF-BAND — i.e. acknowledged by a signal
+   *  OTHER than this state's patch (e.g. an optimistic "submit" whose row was
+   *  confirmed by a separate event stream, not by the value landing in this
+   *  state). Same monotonic-fact semantics as a patch's `confirmed`, but with no
+   *  base/version change. A no-op for ids not pending. */
+  confirm(ids: readonly MutationId[]): void;
+  /** Move a pending mutation to the TAIL of the pending queue, so it replays
+   *  last and renders at the very end. The retry-to-end gesture (WeChat-style):
+   *  clicking retry re-anchors that row after everything, and N retries land in
+   *  click order. Same id ⇒ still idempotent (no duplicate). Local-only: it
+   *  reorders the optimistic view, never the converged base. No-op if `id` isn't
+   *  pending or is already last. */
+  bump(id: MutationId): void;
   /** Fold an arbiter patch into the base, drop confirmed pending, rebase the
    *  rest. Stale/duplicate patches are a no-op. */
   applyPatch(patch: Patch<T>): void;
@@ -97,6 +110,34 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       viewValue = applyMutation(mutators, viewValue, m);
       onChange?.(viewValue);
       return m;
+    },
+
+    confirm(ids: readonly MutationId[]): void {
+      if (ids.length === 0) {
+        return;
+      }
+      const set = new Set<MutationId>(ids);
+      const next = queue.filter((m) => !set.has(m.id));
+      if (next.length === queue.length) {
+        return; // none pending — no-op
+      }
+      queue = next;
+      recompute();
+      onChange?.(viewValue);
+    },
+
+    bump(id: MutationId): void {
+      const i = queue.findIndex((m) => m.id === id);
+      if (i === -1 || i === queue.length - 1) {
+        return; // not pending or already last
+      }
+      const m = queue[i];
+      if (m === undefined) {
+        return;
+      }
+      queue = [...queue.slice(0, i), ...queue.slice(i + 1), m];
+      recompute();
+      onChange?.(viewValue);
     },
 
     applyPatch(patch: Patch<T>): void {
