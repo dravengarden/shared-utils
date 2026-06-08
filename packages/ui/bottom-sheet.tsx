@@ -52,10 +52,14 @@ export interface BottomSheetProps {
    * the bottom instead of switching to a centered dialog.
    */
   readonly forceSheet?: boolean;
+  /** Frosted-glass surface on the mobile sheet — forwarded to DetentSheet's
+   *  `frosted` variant (translucent 磨砂玻璃 material + lighter scrim). No effect on
+   *  the desktop dialog. Default false = solid. */
+  readonly frosted?: boolean;
 }
 
 export function BottomSheet(
-  { open, onClose, title, children, actions, wide = false, forceSheet = false }: BottomSheetProps,
+  { open, onClose, title, children, actions, wide = false, forceSheet = false, frosted = false }: BottomSheetProps,
 ): ReactNode {
   const theme = useTheme();
   // useMediaQuery must run unconditionally (rules of hooks); OR with forceSheet
@@ -91,6 +95,7 @@ export function BottomSheet(
     <DetentSheet
       open={open}
       onClose={onClose}
+      frosted={frosted}
       ariaLabel={typeof title === "string" ? title : undefined}
       // Dim the standalone status bar in lockstep with the scrim, and — since
       // surfaceColor is also what DetentSheet RESTORES the bar to on close —

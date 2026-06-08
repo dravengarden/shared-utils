@@ -63,6 +63,7 @@ import {
   useState,
 } from "react";
 import { Box, Paper } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { markDetentSheetOpen } from "./detent-sheet-open.ts";
 
 // The sheet sizes to its content but never taller than this fraction of the
@@ -87,6 +88,11 @@ const SETTLE_MS = 320;
 const SETTLE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 // Scrim darkens as the sheet rises (0 closed → this at full).
 const SCRIM_MAX = 0.45;
+// The `frosted` variant uses a much LIGHTER scrim: the translucent frosted
+// surface diffuses the page behind it, so a heavy black scrim would just mud the
+// glass — the lighter dim lets content read THROUGH the material (the iOS sheet
+// look) while still signalling "tap outside to dismiss".
+const FROSTED_SCRIM_MAX = 0.22;
 // The sheet is a drawer-class overlay, so it sits in MUI's DRAWER band — above
 // app chrome (banners z=10, AppBar 1100, MUI Drawer 1200) but BELOW the modal
 // band (zIndex.modal = 1300). That ordering is load-bearing: MUI Menu / Select /
@@ -100,17 +106,17 @@ const SAFE_TOP = "env(safe-area-inset-top, 0px)";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
-// Composite an opaque `#rgb` / `#rrggbb` base UNDER black at `alpha` (0..1) →
+// Composite an opaque `#rgb` / `#rrggbb` base UNDER black at `dim` (0..1) →
 // the colour the status bar should show so it visually matches the page scrim
-// (black @ alpha painted over the same base). Returns the input unchanged if it
+// (black @ dim painted over the same base). Returns the input unchanged if it
 // isn't a hex colour, so a non-hex `surfaceColor` degrades to "no dim".
-function dimHex(base: string, alpha: number): string {
+function dimHex(base: string, dim: number): string {
   const hex = base.trim().replace(/^#/u, "");
   const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
   if (full.length !== 6 || /[^0-9a-f]/iu.test(full)) {
     return base;
   }
-  const f = 1 - clamp(alpha, 0, 1);
+  const f = 1 - clamp(dim, 0, 1);
   const ch = (i: number): string =>
     Math.round(Number.parseInt(full.slice(i, i + 2), 16) * f)
       .toString(16)
@@ -144,8 +150,8 @@ function setStatusBarColor(color: string): void {
 // Scrim opacity for a given translateY — the exact value `paint` writes to the
 // scrim, factored out so the status-bar tint can be kept in lockstep with it.
 // |y| because the hidden direction is signed (down for a top sheet).
-function scrimOpacityAt(y: number, closedPx: number): number {
-  return closedPx > 0 ? clamp((closedPx - Math.abs(y)) / closedPx, 0, 1) * SCRIM_MAX : 0;
+function scrimOpacityAt(y: number, closedPx: number, max: number): number {
+  return closedPx > 0 ? clamp((closedPx - Math.abs(y)) / closedPx, 0, 1) * max : 0;
 }
 
 export interface DetentSheetProps {
@@ -173,15 +179,23 @@ export interface DetentSheetProps {
    *  standalone; an inert no-op when hosted in a cross-origin iframe (see
    *  header). */
   readonly surfaceColor?: string | undefined;
+  /** Frosted-glass surface variant: the sheet becomes a translucent, blurred
+   *  "磨砂玻璃" material (the page diffuses through it) instead of the solid
+   *  `background.paper`, and the scrim lightens to match. Same recipe as the app
+   *  bars (alpha tint + `blur(30px) saturate(200%)`). Default false = solid. */
+  readonly frosted?: boolean | undefined;
 }
 
 export function DetentSheet(
-  { open, onClose, ariaLabel, anchor = "bottom", header, children, footer, surfaceColor }: DetentSheetProps,
+  { open, onClose, ariaLabel, anchor = "bottom", header, children, footer, surfaceColor, frosted = false }:
+    DetentSheetProps,
 ): ReactNode {
   // +1 hides downward (bottom sheet), −1 hides upward (top sheet). All geometry
   // is mirrored by this; `closedPx` (the slide distance) stays positive.
   const sign = anchor === "top" ? -1 : 1;
   const isTop = anchor === "top";
+  // Lighter scrim under the frosted material so the page reads THROUGH the glass.
+  const scrimMax = frosted ? FROSTED_SCRIM_MAX : SCRIM_MAX;
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
@@ -193,10 +207,12 @@ export function DetentSheet(
   // re-created (which would replay the open animation).
   const surfaceColorRef = useRef(surfaceColor);
   const signRef = useRef(sign);
+  const scrimMaxRef = useRef(scrimMax);
   useEffect(() => {
     surfaceColorRef.current = surfaceColor;
     signRef.current = sign;
-  }, [surfaceColor, sign]);
+    scrimMaxRef.current = scrimMax;
+  }, [surfaceColor, sign, scrimMax]);
 
   // Write translateY + scrim opacity straight to the DOM (no React render). The
   // settle rides a CSS transition; an active drag turns it off so the sheet
@@ -212,7 +228,7 @@ export function DetentSheet(
     }
     if (scrim) {
       scrim.style.transition = animate ? `opacity ${String(SETTLE_MS)}ms ${SETTLE_EASE}` : "none";
-      scrim.style.opacity = String(scrimOpacityAt(y, closedPx));
+      scrim.style.opacity = String(scrimOpacityAt(y, closedPx, scrimMaxRef.current));
     }
     // Match the status bar to the scrim, but only at settle points: iOS paints
     // `theme-color` with a hard snap (no animation), so a per-frame write during
@@ -220,7 +236,7 @@ export function DetentSheet(
     // (open / snap / dismiss); the bar then steps between detents, not per frame.
     const surface = surfaceColorRef.current;
     if (animate && surface !== undefined) {
-      setStatusBarColor(dimHex(surface, scrimOpacityAt(y, closedPx)));
+      setStatusBarColor(dimHex(surface, scrimOpacityAt(y, closedPx, scrimMaxRef.current)));
     }
   }, []);
 
@@ -368,11 +384,11 @@ export function DetentSheet(
     if (!open || surfaceColor === undefined) {
       return;
     }
-    setStatusBarColor(dimHex(surfaceColor, scrimOpacityAt(yRef.current, geomRef.current.closedPx)));
+    setStatusBarColor(dimHex(surfaceColor, scrimOpacityAt(yRef.current, geomRef.current.closedPx, scrimMax)));
     return () => {
       setStatusBarColor(surfaceColor);
     };
-  }, [open, surfaceColor]);
+  }, [open, surfaceColor, scrimMax]);
 
   // Unmounted when closed; the dismiss runs the settle (open still true) and
   // only then calls onClose, so the slide-out is seen.
@@ -485,9 +501,18 @@ export function DetentSheet(
           display: "flex",
           flexDirection: "column",
           // Flat background.paper (see the Paper comment) — drops the dark-mode
-          // elevation overlay so chrome + content are one surface.
-          bgcolor: "background.paper",
+          // elevation overlay so chrome + content are one surface. The `frosted`
+          // variant swaps it for a translucent 磨砂玻璃 material (same recipe as the
+          // app bars): a milky tint over a heavy blur+saturate, so the page diffuses
+          // through it. `backgroundImage:none` either way (no elevation overlay).
           backgroundImage: "none",
+          ...(frosted
+            ? {
+              bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.72 : 0.76),
+              backdropFilter: "blur(30px) saturate(200%)",
+              WebkitBackdropFilter: "blur(30px) saturate(200%)",
+            }
+            : { bgcolor: "background.paper" }),
           // Round the inner (revealed) edge only.
           ...(isTop
             ? { borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }

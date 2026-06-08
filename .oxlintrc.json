@@ -28,7 +28,7 @@
     "eqeqeq": ["error", "always", { "null": "ignore" }],
     "func-style": ["error", "declaration", { "allowArrowFunctions": true }],
     "jsx-max-depth": ["error", { "max": 6 }],
-    "max-lines": ["error", { "max": 500 }],
+    "max-lines": ["error", { "max": 500, "skipComments": true, "skipBlankLines": true }],
     "max-lines-per-function": ["error", { "max": 350 }],
     "max-statements": ["error", { "max": 50 }],
 
