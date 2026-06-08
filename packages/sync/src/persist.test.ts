@@ -107,7 +107,7 @@ Deno.test("onDiverge fires when a patch's valueHash disagrees with the value", (
 
 Deno.test("LocalPersistence: flush saves {base, pending}; hydrate restores them", async () => {
   let stored: ClientSnapshot<Doc> | null = null;
-  const local: LocalPersistence<Doc> = {
+  const local: LocalPersistence<ClientSnapshot<Doc>> = {
     load: (): Promise<ClientSnapshot<Doc> | null> => Promise.resolve(stored),
     save: (s): Promise<void> => {
       stored = s;

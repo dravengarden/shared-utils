@@ -1,14 +1,17 @@
-// IndexedDB-backed LocalPersistence for @shared-utils/sync clients — the browser
-// backend for instant-load + durable-outbox local caching of a sync state. One
-// DB, one object store, one record (structured-clone, no manual JSON) per state
-// key. Async by nature; ALL errors degrade gracefully (a blocked/absent/quota'd
-// store behaves as "nothing stored") so persistence can never break the app.
+// IndexedDB-backed LocalPersistence for the @shared-utils state tiers — the
+// browser backend for instant-load + offline caching. Generic over the stored
+// shape `S`, so it backs BOTH tiers with one impl: a `replicatedStore`'s durable
+// outbox (`S = ClientSnapshot<T>`) and a `mirroredStore`'s value mirror
+// (`S = T`). One DB, one object store, one record (structured-clone, no manual
+// JSON) per key. Async by nature; ALL errors degrade gracefully (a
+// blocked/absent/quota'd store behaves as "nothing stored") so persistence can
+// never break the app.
 //
 // IndexedDB is an event-based API with no promise interface, so wrapping its
 // requests in `new Promise` is unavoidable here.
 // oxlint-disable promise/avoid-new
 
-import type { ClientSnapshot, LocalPersistence } from "@shared-utils/sync";
+import type { LocalPersistence } from "@shared-utils/sync";
 
 export interface IdbOpts {
   /** Database name. Default "shared-utils-sync". */
@@ -17,8 +20,10 @@ export interface IdbOpts {
   storeName?: string;
 }
 
-/** A `LocalPersistence<T>` storing one client's {base, pending} under `key`. */
-export function idbPersistence<T>(key: string, opts: IdbOpts = {}): LocalPersistence<T> {
+/** A `LocalPersistence<S>` storing one record of shape `S` under `key`
+ *  (`ClientSnapshot<T>` for a replicated client, or a raw `T` value for a
+ *  mirrored store). */
+export function idbPersistence<S>(key: string, opts: IdbOpts = {}): LocalPersistence<S> {
   const dbName = opts.dbName ?? "shared-utils-sync";
   const storeName = opts.storeName ?? "clients";
   let dbPromise: Promise<IDBDatabase> | undefined = undefined;
@@ -55,20 +60,20 @@ export function idbPersistence<T>(key: string, opts: IdbOpts = {}): LocalPersist
   };
 
   return {
-    load: async (): Promise<ClientSnapshot<T> | null> => {
+    load: async (): Promise<S | null> => {
       try {
-        const v = await run<ClientSnapshot<T> | undefined>(
+        const v = await run<S | undefined>(
           "readonly",
-          (s) => s.get(key) as IDBRequest<ClientSnapshot<T> | undefined>,
+          (s) => s.get(key) as IDBRequest<S | undefined>,
         );
         return v ?? null;
       } catch {
         return null; // blocked / absent / corrupt → "nothing stored"
       }
     },
-    save: async (snapshot): Promise<void> => {
+    save: async (value): Promise<void> => {
       try {
-        await run<IDBValidKey>("readwrite", (s) => s.put(snapshot, key));
+        await run<IDBValidKey>("readwrite", (s) => s.put(value, key));
       } catch {
         // degrade gracefully — persistence must never break the app
       }
