@@ -49,8 +49,15 @@ export interface Client<T, M extends Mutators<T>> {
    *  pending or is already last. */
   bump(id: MutationId): void;
   /** Fold an arbiter patch into the base, drop confirmed pending, rebase the
-   *  rest. Stale/duplicate patches are a no-op. */
-  applyPatch(patch: Patch<T>): void;
+   *  rest. Stale/duplicate patches are a no-op.
+   *
+   *  `opts.force` adopts the patch's value as the new base REGARDLESS of version
+   *  — for a reconnect RESYNC, where the arbiter's current snapshot is ground
+   *  truth even if its version is lower than what this client cached (e.g. the
+   *  service restarted and its version clock reset). Pending is preserved +
+   *  replayed on the forced base. Without `force`, only a strictly-newer version
+   *  advances the base (live-stream ordering). */
+  applyPatch(patch: Patch<T>, opts?: { force?: boolean }): void;
 }
 
 export interface ClientOpts<T, M extends Mutators<T>> {
@@ -140,7 +147,7 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       onChange?.(viewValue);
     },
 
-    applyPatch(patch: Patch<T>): void {
+    applyPatch(patch: Patch<T>, applyOpts?: { force?: boolean }): void {
       let changed = false;
       // CONFIRMATIONS ARE MONOTONIC FACTS — process them from EVERY patch, even a
       // reordered/older/dup one. A patch's value may be stale (an absolute
@@ -159,7 +166,7 @@ export function createClient<T, M extends Mutators<T>>(opts: ClientOpts<T, M>): 
       // VALUE: only a strictly-newer absolute snapshot advances the base; an
       // older/duplicate snapshot's value is ignored (idempotent). (An op-patch
       // would additionally require fromVersion === base.version + gap → resync.)
-      if (patch.toVersion > base.version) {
+      if (applyOpts?.force === true || patch.toVersion > base.version) {
         base = freeze({ version: patch.toVersion, value: patch.apply(base.value) });
         changed = true;
       }

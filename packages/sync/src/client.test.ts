@@ -39,6 +39,17 @@ Deno.test("confirmed pending drops once; duplicate patch is a no-op", () => {
   assertEquals(c.view(), { n: 5 }); // no double-apply (version not newer)
 });
 
+Deno.test("applyPatch force: resync adopts a lower-version snapshot + replays pending", () => {
+  const c = createClient<S, typeof muts>({ clientId: "c", mutators: muts, initial: { version: 5, value: { n: 100 } } });
+  c.mutate("add", { d: 7 }); // pending → view 107
+  // service restarted: its version clock reset; the resync snapshot is truth.
+  c.applyPatch(snapshotPatch(1, { n: 50 }, []), { force: true });
+  assertEquals(c.version(), 1); // adopted despite 1 < 5
+  assertEquals(c.view(), { n: 57 }); // base 50 + replayed pending(+7)
+  c.applyPatch(snapshotPatch(0, { n: 999 }, [])); // non-force stale → still ignored
+  assertEquals(c.view(), { n: 57 });
+});
+
 Deno.test("bump: re-anchors a pending mutation to the tail (retry-to-end)", () => {
   type L = readonly string[];
   const lm = { push: (l: L, a: { v: string }): L => [...l, a.v] } satisfies Mutators<L>;
