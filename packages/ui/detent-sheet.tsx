@@ -229,11 +229,12 @@ export function DetentSheet(
   const isCover = cover && !isTop;
   const useFrost = frosted || isCover;
   // Lighter scrim under the frosted material so the page reads THROUGH the glass.
-  const scrimMax = isCover
-    ? COVER_SCRIM_MAX
-    : useFrost
-    ? FROSTED_SCRIM_MAX
-    : SCRIM_MAX;
+  let scrimMax = SCRIM_MAX;
+  if (isCover) {
+    scrimMax = COVER_SCRIM_MAX;
+  } else if (useFrost) {
+    scrimMax = FROSTED_SCRIM_MAX;
+  }
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
@@ -533,15 +534,25 @@ export function DetentSheet(
           position: "fixed",
           left: 0,
           right: 0,
-          ...(isTop ? { top: 0 } : { bottom: 0 }),
+          // A bottom COVER lifts above the on-screen keyboard via `--kb-inset` (set
+          // by the host from visualViewport; 0px fallback when there's no keyboard or
+          // the host doesn't track it). iOS never resizes the layout viewport for the
+          // keyboard, so this var is the only signal — paired with the height shrink
+          // below, the full-screen sheet fills exactly the area above the keyboard
+          // and its footer/field stay visible. Non-cover sheets are content-height
+          // and rise on their own, so they stay pinned at 0.
+          ...(isTop ? { top: 0 } : { bottom: isCover ? "var(--kb-inset, 0px)" : 0 }),
           // Cover: a true FULL-BLEED full-screen sheet — `left:0/right:0` above
           // already span the viewport, so no width cap (an earlier 720px cap left
           // a centred card with bare side gutters on an iPad — the reported bug).
           // Otherwise: content-driven height, capped so a scrim strip always shows.
           ...(isCover
             ? {
-              height: COVER_HEIGHT,
-              maxHeight: COVER_HEIGHT,
+              // Shrink by the keyboard inset so the sheet fills exactly the area
+              // ABOVE the keyboard (paired with bottom:--kb-inset above). 0px
+              // fallback → full 100dvh when the keyboard is down.
+              height: `calc(${COVER_HEIGHT} - var(--kb-inset, 0px))`,
+              maxHeight: `calc(${COVER_HEIGHT} - var(--kb-inset, 0px))`,
               // The glass bleeds to the very top; the content (grab handle + rows)
               // is pushed below the notch / Dynamic Island by the safe-area inset.
               pt: SAFE_TOP,
@@ -600,7 +611,11 @@ export function DetentSheet(
                     gap: 1,
                     px: 2,
                     pt: 1,
-                    pb: SAFE_BOTTOM,
+                    // A cover lifts itself above the keyboard (bottom:--kb-inset), so
+                    // when the keyboard is up the home-indicator clearance is moot —
+                    // collapse to a small gap above the keyboard; full SAFE_BOTTOM
+                    // when it's down (or for non-cover sheets).
+                    pb: isCover ? `max(8px, calc(${SAFE_BOTTOM} - var(--kb-inset, 0px)))` : SAFE_BOTTOM,
                   }}
                 >
                   {footer}
