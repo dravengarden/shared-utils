@@ -112,7 +112,6 @@ const SAFE_TOP = "env(safe-area-inset-top, 0px)";
 // medium peek). Capped + centred so it's edge-to-edge on a phone but a centred
 // card on an iPad.
 const COVER_HEIGHT = "100dvh";
-const COVER_MAX_WIDTH = 720;
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
@@ -524,16 +523,14 @@ export function DetentSheet(
           left: 0,
           right: 0,
           ...(isTop ? { top: 0 } : { bottom: 0 }),
-          // Cover: a fixed near-full height (a thin top sliver of dimmed page
-          // stays), capped + centred so it's a wide cover on a phone but a card
-          // on a tablet. Otherwise: content-driven height, capped so a scrim
-          // strip always shows.
+          // Cover: a true FULL-BLEED full-screen sheet — `left:0/right:0` above
+          // already span the viewport, so no width cap (an earlier 720px cap left
+          // a centred card with bare side gutters on an iPad — the reported bug).
+          // Otherwise: content-driven height, capped so a scrim strip always shows.
           ...(isCover
             ? {
               height: COVER_HEIGHT,
               maxHeight: COVER_HEIGHT,
-              maxWidth: COVER_MAX_WIDTH,
-              marginInline: "auto",
               // The glass bleeds to the very top; the content (grab handle + rows)
               // is pushed below the notch / Dynamic Island by the safe-area inset.
               pt: SAFE_TOP,
