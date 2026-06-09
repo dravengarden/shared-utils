@@ -240,6 +240,12 @@ export function DetentSheet(
   const scrimRef = useRef<HTMLDivElement | null>(null);
   const yRef = useRef(0); // current translateY (px), signed
   const geomRef = useRef<{ detents: number[]; closedPx: number }>({ detents: [0, 0], closedPx: 0 });
+  // True once the open slide-in has played for the current open. A geometry
+  // recompute WHILE already open (e.g. `cover` toggled by the keyboard
+  // showing/hiding, switching full-screen ↔ content-height) must NOT re-seed the
+  // closed offset + re-slide — that flickers the sheet off-screen and back on
+  // every toggle. Reset when the sheet closes.
+  const animatedRef = useRef(false);
   const dragRef = useRef<{ startPointerY: number; startY: number; samples: { t: number; y: number }[] } | null>(null);
   const rafRef = useRef(0);
   // Mirror props into refs so `paint` (deps []) reads the latest without being
@@ -282,6 +288,7 @@ export function DetentSheet(
   // (Re)compute geometry against the rendered content on open, then animate in.
   useEffect(() => {
     if (!open) {
+      animatedRef.current = false;
       return;
     }
     const h = globalThis.innerHeight;
@@ -301,6 +308,14 @@ export function DetentSheet(
     const detents = hasPeek ? [peekY, 0] : [0];
     geomRef.current = { detents, closedPx };
     const openY = detents.at(-1) ?? 0; // full
+    if (animatedRef.current) {
+      // Already open — this is a geometry change (cover ↔ content-height), the
+      // CSS height/anchor already updated reactively. Just settle to the open
+      // position (snaps a stale peek offset to full); never re-seed + re-slide.
+      paint(openY, true);
+      return;
+    }
+    animatedRef.current = true;
     paint(sign * closedPx, false); // seed closed (no transition)…
     const id = globalThis.requestAnimationFrame(() => paint(openY, true)); // …then slide open
     return () => globalThis.cancelAnimationFrame(id);
