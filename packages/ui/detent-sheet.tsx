@@ -617,8 +617,16 @@ export function DetentSheet(
             top: 0,
             left: 0,
             right: 0,
-            height: SAFE_TOP,
-            bgcolor: "background.default",
+            // SOLID through the status-bar safe area (so the opaque status bar has a
+            // matching surface), then a short fade to transparent INTO the glass —
+            // a gradient, not a hard band. A solid strip just relocated the seam to
+            // its own bottom edge (the band you saw on every cover sheet); fading it
+            // out means there's no edge at all.
+            height: `calc(${SAFE_TOP} + 20px)`,
+            background: (t) =>
+              `linear-gradient(to bottom, ${t.palette.background.default}, ${t.palette.background.default} ${SAFE_TOP}, ${
+                alpha(t.palette.background.default, 0)
+              })`,
             zIndex: z + 1,
             pointerEvents: "none",
           }}
