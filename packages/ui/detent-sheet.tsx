@@ -549,7 +549,12 @@ export function DetentSheet(
           backgroundImage: "none",
           ...(useFrost
             ? {
-              bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.72 : 0.76),
+              // Thinner milky tint (was .72/.76) so the blurred page reads THROUGH
+              // the glass — a real translucent-frosted look instead of a near-solid
+              // panel. The blur+saturate carry the "glass" feel; the tint is kept
+              // high enough that text over it stays readable. Light keeps a touch
+              // more tint than dark (light themes show the page colours more).
+              bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.54 : 0.6),
               backdropFilter: "blur(30px) saturate(200%)",
               WebkitBackdropFilter: "blur(30px) saturate(200%)",
             }
