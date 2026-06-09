@@ -93,6 +93,13 @@ const SCRIM_MAX = 0.45;
 // glass — the lighter dim lets content read THROUGH the material (the iOS sheet
 // look) while still signalling "tap outside to dismiss".
 const FROSTED_SCRIM_MAX = 0.22;
+// A `cover` fills the screen, so its scrim is entirely BEHIND the sheet (no
+// visible dim strip, dismiss is the grab-flick not a tap-outside) — and any dim
+// makes the glass body DARKER than the bg-coloured app chrome (AppBar) showing
+// through the sheet's top, which reads as a brightness band under the status bar.
+// Near-zero keeps the whole sheet at the page's own brightness, so the top blends
+// into the (bg) status bar and the chat reads brightly through the glass.
+const COVER_SCRIM_MAX = 0.03;
 // The sheet is a drawer-class overlay, so it sits in MUI's DRAWER band — above
 // app chrome (banners z=10, AppBar 1100, MUI Drawer 1200) but BELOW the modal
 // band (zIndex.modal = 1300). That ordering is load-bearing: MUI Menu / Select /
@@ -222,7 +229,11 @@ export function DetentSheet(
   const isCover = cover && !isTop;
   const useFrost = frosted || isCover;
   // Lighter scrim under the frosted material so the page reads THROUGH the glass.
-  const scrimMax = useFrost ? FROSTED_SCRIM_MAX : SCRIM_MAX;
+  const scrimMax = isCover
+    ? COVER_SCRIM_MAX
+    : useFrost
+    ? FROSTED_SCRIM_MAX
+    : SCRIM_MAX;
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrimRef = useRef<HTMLDivElement | null>(null);
@@ -598,40 +609,6 @@ export function DetentSheet(
             </>
           )}
       </Paper>
-      {/* Cover only: an OPAQUE bg strip pinned to the status-bar safe area. The
-          iOS status bar is opaque (it shows the theme-colour) but the cover's glass
-          is translucent, so the bright bar never matches the see-through sheet —
-          a seam at the very top. A solid `background.default` band (= the
-          theme-colour the status bar shows) gives it a matching surface. It's a
-          FIXED SIBLING of the Paper (not a child), so a drag-down on the sheet
-          slides the sheet but NOT this strip — it stays glued to the status bar
-          instead of floating down as a mid-screen band (the reported bug).
-          zIndex z+1 + after the Paper in DOM → above this sheet's surface but
-          still below any nested sheet's scrim (z+2). pointerEvents none so it
-          never eats the drag. */}
-      {isCover && !isTop && (
-        <Box
-          aria-hidden
-          sx={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            // SOLID through the status-bar safe area (so the opaque status bar has a
-            // matching surface), then a short fade to transparent INTO the glass —
-            // a gradient, not a hard band. A solid strip just relocated the seam to
-            // its own bottom edge (the band you saw on every cover sheet); fading it
-            // out means there's no edge at all.
-            height: `calc(${SAFE_TOP} + 20px)`,
-            background: (t) =>
-              `linear-gradient(to bottom, ${t.palette.background.default}, ${t.palette.background.default} ${SAFE_TOP}, ${
-                alpha(t.palette.background.default, 0)
-              })`,
-            zIndex: z + 1,
-            pointerEvents: "none",
-          }}
-        />
-      )}
     </>
   );
 }
