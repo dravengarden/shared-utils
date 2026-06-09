@@ -531,6 +531,31 @@ export function DetentSheet(
         sx={{ position: "fixed", inset: 0, bgcolor: "common.black", zIndex: z, opacity: 0, touchAction: "none" }}
       />
       {
+        /* Keyboard skirt (cover only): a frosted band filling the keyboard-occupied
+          area BEHIND the on-screen keyboard. The cover ends at the keyboard's top
+          (bottom:--kb-inset), so the keyboard's rounded top corners + the empty
+          IME-candidate strip otherwise leak the sharp page through at the sheet's
+          bottom edge. Painting the same frosted material there hides the leak. 0
+          height (invisible) when there's no keyboard / `--kb-inset` is unset. */
+      }
+      {isCover && (
+        <Box
+          aria-hidden
+          sx={{
+            position: "fixed",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: "var(--kb-inset, 0px)",
+            zIndex: z + 1,
+            pointerEvents: "none",
+            bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.54 : 0.6),
+            backdropFilter: "blur(30px) saturate(200%)",
+            WebkitBackdropFilter: "blur(30px) saturate(200%)",
+          }}
+        />
+      )}
+      {
         /* An elevated MUI Paper: its SHADOW reads as a layer floating above the
           dimmed page ("transient overlay, tap scrim to dismiss"). The surface is
           pinned to flat `background.paper` (backgroundImage:none below) NOT Paper's
