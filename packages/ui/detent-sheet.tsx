@@ -569,26 +569,6 @@ export function DetentSheet(
           transform: `translateY(${String(sign * 100)}vh)`,
         }}
       >
-        {/* Cover only: an OPAQUE bg strip over the status-bar safe area. The iOS
-            status bar is opaque (it shows the theme-colour), but the cover's glass
-            is translucent — so the bright bar never matches the see-through sheet
-            and you get a seam at the very top. Painting the safe-area band a solid
-            `background.default` (= the theme-colour) gives the status bar a matching
-            surface to sit on; the translucent glass body stays below it. */}
-        {isCover && !isTop && (
-          <Box
-            aria-hidden
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: SAFE_TOP,
-              bgcolor: "background.default",
-              zIndex: 1,
-            }}
-          />
-        )}
         {isTop
           ? (
             <>
@@ -618,6 +598,32 @@ export function DetentSheet(
             </>
           )}
       </Paper>
+      {/* Cover only: an OPAQUE bg strip pinned to the status-bar safe area. The
+          iOS status bar is opaque (it shows the theme-colour) but the cover's glass
+          is translucent, so the bright bar never matches the see-through sheet —
+          a seam at the very top. A solid `background.default` band (= the
+          theme-colour the status bar shows) gives it a matching surface. It's a
+          FIXED SIBLING of the Paper (not a child), so a drag-down on the sheet
+          slides the sheet but NOT this strip — it stays glued to the status bar
+          instead of floating down as a mid-screen band (the reported bug).
+          zIndex z+1 + after the Paper in DOM → above this sheet's surface but
+          still below any nested sheet's scrim (z+2). pointerEvents none so it
+          never eats the drag. */}
+      {isCover && !isTop && (
+        <Box
+          aria-hidden
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: SAFE_TOP,
+            bgcolor: "background.default",
+            zIndex: z + 1,
+            pointerEvents: "none",
+          }}
+        />
+      )}
     </>
   );
 }
