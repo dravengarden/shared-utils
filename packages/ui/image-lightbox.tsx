@@ -29,6 +29,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Box, IconButton, useTheme } from "@mui/material";
 import { useLightboxGestures } from "./image-lightbox-gestures.ts";
+import { haptic as fireHaptic } from "./haptics.ts";
 
 export interface GalleryImage {
   src: string;
@@ -66,6 +67,17 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
   const imgRef = useRef<HTMLImageElement>(null);
 
   const open = index !== null && index >= 0 && index < images.length;
+  // Light tap when the lightbox DISMISSES — one central hook covering every close
+  // path (backdrop tap, Esc, ✕, swipe-down, programmatic). Open is covered by the
+  // thumbnail's own press. (Open isn't a custom MuiModal, so the global delegation
+  // can't see its dismiss; this is the equivalent of DetentSheet's dismiss tap.)
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !open) {
+      fireHaptic("light");
+    }
+    wasOpen.current = open;
+  }, [open]);
   const current = open && index !== null ? images[index] : undefined;
   const src = current?.src ?? null;
   const canPrev = open && index !== null && index > 0;
