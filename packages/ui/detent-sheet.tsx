@@ -216,7 +216,7 @@ export interface DetentSheetProps {
 // there is toggling a hidden `<input type="checkbox" switch>` (iOS 17.4+).
 // navigator.vibrate covers Android. Both wrapped — only the supported path does
 // anything; harmless no-op elsewhere. The hidden switch is created once + reused.
-let hapticSwitch: HTMLLabelElement | undefined = undefined;
+let hapticSwitch: HTMLLabelElement | null = null;
 function sheetHaptic(): void {
   try {
     const nav = globalThis.navigator;
@@ -231,7 +231,7 @@ function sheetHaptic(): void {
     if (doc?.body === undefined || doc.body === null) {
       return;
     }
-    if (hapticSwitch === undefined) {
+    if (hapticSwitch === null) {
       const label = doc.createElement("label");
       label.setAttribute("aria-hidden", "true");
       label.style.cssText =
