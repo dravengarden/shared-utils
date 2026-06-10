@@ -546,7 +546,12 @@ export function DetentSheet(
             left: 0,
             right: 0,
             bottom: 0,
-            height: "var(--kb-inset, 0px)",
+            // +24px so the skirt extends a touch PAST the keyboard's top edge:
+            // the keyboard's rounded top corners would otherwise reveal a sliver of
+            // the sharp page at the skirt/cover seam (bottom-left/right). The
+            // overshoot sits BEHIND the cover's footer (z-order) + the keyboard, so
+            // it's a harmless overlap, not a visible band.
+            height: "calc(var(--kb-inset, 0px) + 24px)",
             zIndex: z + 1,
             pointerEvents: "none",
             bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.54 : 0.6),
