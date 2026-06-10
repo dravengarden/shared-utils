@@ -15,7 +15,8 @@
 // coalesce window collapses a delegated press + an explicit call for the same
 // gesture into a single tap, so nothing double-buzzes.
 //
-// iOS-native in spirit: feedback on touch-DOWN for buttons (immediate), a
+// iOS-native in spirit: a tap tick on buttons (fired on pointerup when the finger
+// barely moved, so a scroll flick that starts on a clickable row never buzzes), a
 // selection tick for toggles, a soft present/dismiss for sheets.
 
 import { haptic, selectionHaptic } from "./haptics.ts";
@@ -100,16 +101,20 @@ function isCustomClickable(el: Element): boolean {
 
 let lastPressAt = -Infinity;
 
-function onPointerDownHaptic(e: Event): void {
-  const target = e.target as Element | null;
-  if (target === null) {
-    return;
-  }
-  // Tap-outside dismiss: a press on a popup backdrop closes it. Fire the dismiss
-  // tap NOW, at the gesture — not when the portal is finally removed (that lands
-  // AFTER the close animation, which feels like a delayed buzz). Select options /
-  // Dialog buttons are MuiButtonBase, so THEY already buzz at press; this covers
-  // the click-outside path that has no button of its own.
+// Tap detection. We DON'T buzz on pointerdown — a touch that starts on a clickable
+// row inside a scroll list would then vibrate on every scroll flick (the reported
+// bug). Instead record the down point and only buzz on pointerup if the finger
+// barely moved (a tap, not a scroll/drag). A scroll moves past the slop — or fires
+// pointercancel — and stays silent.
+const TAP_SLOP = 10;
+let downX = 0;
+let downY = 0;
+let downTarget: Element | null = null;
+
+function classifyTap(target: Element): void {
+  // Tap-outside dismiss: a tap on a popup backdrop closes it. Buzz the dismiss now
+  // (Select options / Dialog buttons are MuiButtonBase and buzz on their own; this
+  // covers the click-outside path that has no button of its own).
   if (target.closest(".MuiBackdrop-root")) {
     haptic("light");
     return;
@@ -138,6 +143,30 @@ function onPointerDownHaptic(e: Event): void {
     lastPressAt = now();
     haptic("light");
   }
+}
+
+function onPointerDownTrack(e: Event): void {
+  const pe = e as PointerEvent;
+  downX = pe.clientX;
+  downY = pe.clientY;
+  downTarget = e.target as Element | null;
+}
+
+function onPointerUpTap(e: Event): void {
+  const target = downTarget;
+  downTarget = null;
+  if (target === null) {
+    return;
+  }
+  const pe = e as PointerEvent;
+  if (Math.hypot(pe.clientX - downX, pe.clientY - downY) > TAP_SLOP) {
+    return; // a scroll / drag, not a tap
+  }
+  classifyTap(target);
+}
+
+function onPointerCancelTap(): void {
+  downTarget = null;
 }
 
 function onChangeHaptic(e: Event): void {
@@ -180,8 +209,15 @@ export function installHaptics(opts: HapticDelegationOptions = {}): () => void {
   const cleanups: (() => void)[] = [];
 
   if (buttons) {
-    doc.addEventListener("pointerdown", onPointerDownHaptic, { capture: true, passive: true });
-    cleanups.push(() => doc.removeEventListener("pointerdown", onPointerDownHaptic, { capture: true }));
+    // Tap detection (down records, up buzzes only if it was a tap not a scroll).
+    doc.addEventListener("pointerdown", onPointerDownTrack, { capture: true, passive: true });
+    doc.addEventListener("pointerup", onPointerUpTap, { capture: true, passive: true });
+    doc.addEventListener("pointercancel", onPointerCancelTap, { capture: true, passive: true });
+    cleanups.push(() => {
+      doc.removeEventListener("pointerdown", onPointerDownTrack, { capture: true });
+      doc.removeEventListener("pointerup", onPointerUpTap, { capture: true });
+      doc.removeEventListener("pointercancel", onPointerCancelTap, { capture: true });
+    });
   }
 
   if (toggles) {
