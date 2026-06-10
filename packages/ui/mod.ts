@@ -1,6 +1,7 @@
 // Public surface of @shared-utils/ui — business-free React + MUI primitives.
 export { DetentSheet, type DetentSheetProps } from "./detent-sheet.tsx";
 export { haptic, type HapticNotification, type HapticStyle, notificationHaptic, selectionHaptic } from "./haptics.ts";
+export { type HapticDelegationOptions, installHaptics } from "./haptic-delegation.ts";
 export { subscribeAnyDetentSheetOpen, useAnyDetentSheetOpen } from "./detent-sheet-open.ts";
 export { BottomSheet, type BottomSheetProps } from "./bottom-sheet.tsx";
 export { SettingsSheet, type SettingsSheetProps, ThemeModeControl } from "./settings-sheet.tsx";
