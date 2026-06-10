@@ -6,7 +6,8 @@
 //     press (medium for a destructive/error button, or one tagged data-haptic).
 //   • any .MuiSwitch / .MuiCheckbox / .MuiRadio flip → a selection tick.
 //   • any popup (Dialog, Menu, Popover, Drawer, Select dropdown — all mount a
-//     .MuiModal-root portal) → a soft impact on OPEN, a light one on CLOSE.
+//     .MuiModal-root portal) → a soft impact on OPEN; dismiss buzzes AT THE GESTURE
+//     (the option/button press, or a backdrop tap), not on the delayed removal.
 //
 // Why delegation instead of wrapping components: it covers EVERY MUI surface in the
 // app (including ones added later) from one listener set, and it composes with
@@ -30,6 +31,10 @@ export interface HapticDelegationOptions {
 
 const OVERLAY_SELECTOR = ".MuiModal-root, .MuiPopover-root, .MuiDialog-root, .MuiDrawer-root";
 const TOGGLE_SELECTOR = ".MuiSwitch-root, .MuiCheckbox-root, .MuiRadio-root";
+// Pressable surfaces. MuiButtonBase covers Button/IconButton/MenuItem/ListItemButton/
+// Tab/Chip/ToggleButton, but a MUI Select trigger is a plain role=combobox div (NOT
+// a ButtonBase), so add it explicitly — otherwise dropdowns feel dead on tap.
+const PRESS_SELECTOR = '.MuiButtonBase-root, .MuiSelect-select, [role="combobox"]';
 // A button-triggered popup opens within ~this long of the press; inside the window
 // the press already buzzed, so the open is suppressed (no double). A programmatic
 // open (no recent press) still buzzes.
@@ -43,7 +48,16 @@ let lastPressAt = -Infinity;
 
 function onPointerDownHaptic(e: Event): void {
   const target = e.target as Element | null;
-  const btn = target?.closest?.(".MuiButtonBase-root") ?? null;
+  // Tap-outside dismiss: a press on a popup backdrop closes it. Fire the dismiss
+  // tap NOW, at the gesture — not when the portal is finally removed (that lands
+  // AFTER the close animation, which feels like a delayed buzz). Select options /
+  // Dialog buttons are MuiButtonBase, so THEY already buzz at press; this covers
+  // the click-outside path that has no button of its own.
+  if (target?.closest?.(".MuiBackdrop-root")) {
+    haptic("light");
+    return;
+  }
+  const btn = target?.closest?.(PRESS_SELECTOR) ?? null;
   if (btn === null) {
     return;
   }
@@ -77,15 +91,14 @@ function anyOverlay(nodes: NodeList): boolean {
 
 function onOverlayMutations(records: MutationRecord[]): void {
   for (const r of records) {
-    // OPEN: a soft present, UNLESS a button just opened it (the press already
-    // buzzed — suppress to avoid a double). CLOSE: a light dismiss, always — a
-    // click-outside / Esc dismiss has no button press of its own.
-    if (anyOverlay(r.addedNodes)) {
-      if (now() - lastPressAt > PRESS_TO_OPEN_MS) {
-        haptic("soft");
-      }
-    } else if (anyOverlay(r.removedNodes)) {
-      haptic("light");
+    // OPEN only: a soft present, UNLESS a button just opened it (the press already
+    // buzzed — suppress to avoid a double). The portal is ADDED instantly on open,
+    // so this is in sync with the gesture. CLOSE is deliberately NOT handled here:
+    // the portal is REMOVED only after the close animation, which feels like a
+    // delayed buzz — dismiss is signalled at the gesture instead (the option/button
+    // press, or the backdrop pointerdown above).
+    if (anyOverlay(r.addedNodes) && now() - lastPressAt > PRESS_TO_OPEN_MS) {
+      haptic("soft");
     }
   }
 }

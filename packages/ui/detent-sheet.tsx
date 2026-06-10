@@ -340,6 +340,9 @@ export function DetentSheet(
   }, [open, paint, sign, isCover, haptic]);
 
   const dismiss = useCallback((): void => {
+    // Light tap on dismiss — the single choke point for every close path (flick
+    // down, tap-outside, programmatic), mirroring the tap on open.
+    fireHaptic("light");
     paint(signRef.current * geomRef.current.closedPx, true);
     globalThis.setTimeout(onClose, SETTLE_MS);
   }, [paint, onClose]);
