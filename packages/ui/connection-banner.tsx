@@ -222,6 +222,14 @@ export function createConnectionStore(opts: ConnectionStoreOptions): ConnectionS
     return knownVersion;
   }
 
+  // Capture knownVersion NOW, at store creation = page load. The bundle we're
+  // running was just served by the current server, so /version at this instant
+  // matches it. Capturing here (instead of waiting for the first WS connect, which
+  // can land AFTER a redeploy — the tab then records the NEW build id while running
+  // the OLD bundle and never detects a change → "reconnected but didn't reload")
+  // closes that race: any later /version change is a genuine redeploy → reload.
+  void probeVersion();
+
   return {
     connectionReady,
     connectionLost,
