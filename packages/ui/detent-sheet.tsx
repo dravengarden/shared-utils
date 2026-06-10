@@ -65,6 +65,7 @@ import {
 import { Box, Paper } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { markDetentSheetOpen } from "./detent-sheet-open.ts";
+import { haptic as fireHaptic } from "./haptics.ts";
 
 // The sheet sizes to its content but never taller than this fraction of the
 // viewport, so a strip of dimmed page always stays beyond it (it reads as a
@@ -213,75 +214,11 @@ export interface DetentSheetProps {
   readonly haptic?: boolean | undefined;
 }
 
-// Tauri 2 injects an IPC bridge on the global when the web view runs inside a
-// native shell. We feature-detect it (no @tauri-apps import → no dependency, no
-// PWA breakage) and call the haptics plugin command directly. Undefined in a
-// browser/PWA → skipped. Accessed via a string key so the leading-underscore
-// global name doesn't trip the dangle lint.
-interface TauriInternals {
-  readonly invoke?: (cmd: string, args?: unknown) => Promise<unknown>;
-}
-const TAURI_INTERNALS_KEY = "__TAURI_INTERNALS__";
-
-// Light haptic tap on open. Order of preference:
-//   1. Native Tauri haptics plugin — the ONLY reliable haptic on iOS (Safari/PWA
-//      has no Vibration API). Real UIImpactFeedbackGenerator via the native shell.
-//   2. navigator.vibrate — Android web.
-//   3. hidden `<input type="checkbox" switch>` toggle — iOS 17.4+ Safari best-effort
-//      (unreliable; kept only as a last resort for the PWA, created once + reused).
-// Every path is wrapped — only a supported one does anything; harmless no-op else.
-let hapticSwitch: HTMLLabelElement | null = null;
+// Haptic tap on open is delegated to the shared `haptic()` primitive (./haptics) —
+// native OS haptic inside a Tauri shell, web fallback otherwise. Kept as a thin
+// alias so the open effect reads clearly.
 function sheetHaptic(): void {
-  try {
-    const internals = (globalThis as Record<string, unknown>)[
-      TAURI_INTERNALS_KEY
-    ] as TauriInternals | undefined;
-    const invoke = internals?.invoke;
-    if (typeof invoke === "function") {
-      // Native shell: fire the real OS haptic and STOP — no web fallback needed.
-      // The async IIFE swallows the rejection that happens if the haptics plugin
-      // isn't registered in the native build yet (no unhandled-rejection noise).
-      void (async (): Promise<void> => {
-        try {
-          await invoke("plugin:haptics|impact_feedback", { style: "medium" });
-        } catch {
-          // plugin missing — silent
-        }
-      })();
-      return;
-    }
-  } catch {
-    // not in a native shell — fall through to the web paths
-  }
-  try {
-    const nav = globalThis.navigator;
-    if (typeof nav?.vibrate === "function") {
-      nav.vibrate(10);
-    }
-  } catch {
-    // unsupported — ignore
-  }
-  try {
-    const doc = globalThis.document as Document | undefined;
-    if (doc?.body === undefined || doc.body === null) {
-      return;
-    }
-    if (hapticSwitch === null) {
-      const label = doc.createElement("label");
-      label.setAttribute("aria-hidden", "true");
-      label.style.cssText =
-        "position:fixed;top:0;left:0;width:0;height:0;opacity:0;pointer-events:none;overflow:hidden";
-      const input = doc.createElement("input");
-      input.type = "checkbox";
-      input.setAttribute("switch", "");
-      label.append(input);
-      doc.body.append(label);
-      hapticSwitch = label;
-    }
-    hapticSwitch.querySelector("input")?.click();
-  } catch {
-    // unsupported — ignore
-  }
+  fireHaptic("medium");
 }
 
 export function DetentSheet(
