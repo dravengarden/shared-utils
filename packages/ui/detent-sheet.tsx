@@ -205,19 +205,54 @@ export interface DetentSheetProps {
    *  detent (flick to dismiss, no peek), capped + centred on a tablet. Implies
    *  the frosted material. Bottom-anchored only. Default false. */
   readonly cover?: boolean | undefined;
-  /** Fire a light haptic tap when the sheet opens. iOS Safari has no Vibration
-   *  API, so this uses the iOS 17.4+ `<input type="checkbox" switch>` toggle
-   *  trick (+ navigator.vibrate on Android); a silent no-op where unsupported.
-   *  Default true. */
+  /** Fire a light haptic tap when the sheet opens. Inside a Tauri (iOS/Android)
+   *  native shell this calls the real OS haptics plugin (UIImpactFeedbackGenerator
+   *  on iOS); in a plain web/PWA context it degrades to navigator.vibrate (Android)
+   *  and the iOS 17.4+ `<input type="checkbox" switch>` toggle trick. A silent
+   *  no-op where unsupported. Default true. */
   readonly haptic?: boolean | undefined;
 }
 
-// Light haptic tap on open. iOS Safari has no Vibration API; the only web haptic
-// there is toggling a hidden `<input type="checkbox" switch>` (iOS 17.4+).
-// navigator.vibrate covers Android. Both wrapped — only the supported path does
-// anything; harmless no-op elsewhere. The hidden switch is created once + reused.
+// Tauri 2 injects an IPC bridge on the global when the web view runs inside a
+// native shell. We feature-detect it (no @tauri-apps import → no dependency, no
+// PWA breakage) and call the haptics plugin command directly. Undefined in a
+// browser/PWA → skipped. Accessed via a string key so the leading-underscore
+// global name doesn't trip the dangle lint.
+interface TauriInternals {
+  readonly invoke?: (cmd: string, args?: unknown) => Promise<unknown>;
+}
+const TAURI_INTERNALS_KEY = "__TAURI_INTERNALS__";
+
+// Light haptic tap on open. Order of preference:
+//   1. Native Tauri haptics plugin — the ONLY reliable haptic on iOS (Safari/PWA
+//      has no Vibration API). Real UIImpactFeedbackGenerator via the native shell.
+//   2. navigator.vibrate — Android web.
+//   3. hidden `<input type="checkbox" switch>` toggle — iOS 17.4+ Safari best-effort
+//      (unreliable; kept only as a last resort for the PWA, created once + reused).
+// Every path is wrapped — only a supported one does anything; harmless no-op else.
 let hapticSwitch: HTMLLabelElement | null = null;
 function sheetHaptic(): void {
+  try {
+    const internals = (globalThis as Record<string, unknown>)[
+      TAURI_INTERNALS_KEY
+    ] as TauriInternals | undefined;
+    const invoke = internals?.invoke;
+    if (typeof invoke === "function") {
+      // Native shell: fire the real OS haptic and STOP — no web fallback needed.
+      // The async IIFE swallows the rejection that happens if the haptics plugin
+      // isn't registered in the native build yet (no unhandled-rejection noise).
+      void (async (): Promise<void> => {
+        try {
+          await invoke("plugin:haptics|impact_feedback", { style: "medium" });
+        } catch {
+          // plugin missing — silent
+        }
+      })();
+      return;
+    }
+  } catch {
+    // not in a native shell — fall through to the web paths
+  }
   try {
     const nav = globalThis.navigator;
     if (typeof nav?.vibrate === "function") {
