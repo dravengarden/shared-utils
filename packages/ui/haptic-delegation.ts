@@ -44,33 +44,65 @@ function now(): number {
   return globalThis.performance?.now?.() ?? 0;
 }
 
+// A custom clickable (a styled Box/Stack with onClick) is NOT a MUI component, so
+// the selectors above miss it — but it almost always sets `cursor: pointer`, the
+// universal "this is clickable" signal. Walk up a few levels (the event may target
+// a text node's parent inside the clickable) and treat a pointer cursor as a tap.
+// Bail on form fields (their cursor isn't a tap action). This is what makes custom
+// expanders (a "Reading font" summary, a "N Drafts" header) buzz with no per-site
+// wiring.
+function isCustomClickable(el: Element): boolean {
+  let node: Element | null = el;
+  for (let i = 0; node !== null && i < 4; i += 1) {
+    if (node instanceof HTMLElement) {
+      const tag = node.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || node.isContentEditable) {
+        return false;
+      }
+      if (globalThis.getComputedStyle(node).cursor === "pointer") {
+        return true;
+      }
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
 let lastPressAt = -Infinity;
 
 function onPointerDownHaptic(e: Event): void {
   const target = e.target as Element | null;
+  if (target === null) {
+    return;
+  }
   // Tap-outside dismiss: a press on a popup backdrop closes it. Fire the dismiss
   // tap NOW, at the gesture — not when the portal is finally removed (that lands
   // AFTER the close animation, which feels like a delayed buzz). Select options /
   // Dialog buttons are MuiButtonBase, so THEY already buzz at press; this covers
   // the click-outside path that has no button of its own.
-  if (target?.closest?.(".MuiBackdrop-root")) {
+  if (target.closest(".MuiBackdrop-root")) {
     haptic("light");
     return;
   }
-  const btn = target?.closest?.(PRESS_SELECTOR) ?? null;
-  if (btn === null) {
+  const btn = target.closest(PRESS_SELECTOR);
+  if (btn !== null) {
+    if (btn.classList.contains("Mui-disabled") || btn.hasAttribute("disabled")) {
+      return;
+    }
+    lastPressAt = now();
+    // Destructive / explicitly-tagged controls get a firmer tap.
+    const tag = btn instanceof HTMLElement ? btn.dataset["haptic"] : undefined;
+    const strong = tag === "medium" ||
+      btn.classList.contains("MuiButton-colorError") ||
+      btn.classList.contains("MuiIconButton-colorError");
+    haptic(strong ? "medium" : "light");
     return;
   }
-  if (btn.classList.contains("Mui-disabled") || btn.hasAttribute("disabled")) {
-    return;
+  // Fallback: a non-MUI custom clickable (cursor:pointer).
+  if (isCustomClickable(target)) {
+    lastPressAt = now();
+    haptic("light");
   }
-  lastPressAt = now();
-  // Destructive / explicitly-tagged controls get a firmer tap.
-  const tag = btn instanceof HTMLElement ? btn.dataset["haptic"] : undefined;
-  const strong = tag === "medium" ||
-    btn.classList.contains("MuiButton-colorError") ||
-    btn.classList.contains("MuiIconButton-colorError");
-  haptic(strong ? "medium" : "light");
 }
 
 function onChangeHaptic(e: Event): void {
