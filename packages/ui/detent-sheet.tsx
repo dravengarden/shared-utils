@@ -205,6 +205,48 @@ export interface DetentSheetProps {
    *  detent (flick to dismiss, no peek), capped + centred on a tablet. Implies
    *  the frosted material. Bottom-anchored only. Default false. */
   readonly cover?: boolean | undefined;
+  /** Fire a light haptic tap when the sheet opens. iOS Safari has no Vibration
+   *  API, so this uses the iOS 17.4+ `<input type="checkbox" switch>` toggle
+   *  trick (+ navigator.vibrate on Android); a silent no-op where unsupported.
+   *  Default true. */
+  readonly haptic?: boolean | undefined;
+}
+
+// Light haptic tap on open. iOS Safari has no Vibration API; the only web haptic
+// there is toggling a hidden `<input type="checkbox" switch>` (iOS 17.4+).
+// navigator.vibrate covers Android. Both wrapped — only the supported path does
+// anything; harmless no-op elsewhere. The hidden switch is created once + reused.
+let hapticSwitch: HTMLLabelElement | undefined = undefined;
+function sheetHaptic(): void {
+  try {
+    const nav = globalThis.navigator;
+    if (typeof nav?.vibrate === "function") {
+      nav.vibrate(10);
+    }
+  } catch {
+    // unsupported — ignore
+  }
+  try {
+    const doc = globalThis.document as Document | undefined;
+    if (doc?.body === undefined || doc.body === null) {
+      return;
+    }
+    if (hapticSwitch === undefined) {
+      const label = doc.createElement("label");
+      label.setAttribute("aria-hidden", "true");
+      label.style.cssText =
+        "position:fixed;top:0;left:0;width:0;height:0;opacity:0;pointer-events:none;overflow:hidden";
+      const input = doc.createElement("input");
+      input.type = "checkbox";
+      input.setAttribute("switch", "");
+      label.append(input);
+      doc.body.append(label);
+      hapticSwitch = label;
+    }
+    hapticSwitch.querySelector("input")?.click();
+  } catch {
+    // unsupported — ignore
+  }
 }
 
 export function DetentSheet(
@@ -219,6 +261,7 @@ export function DetentSheet(
     surfaceColor,
     frosted = false,
     cover = false,
+    haptic = true,
   }: DetentSheetProps,
 ): ReactNode {
   // +1 hides downward (bottom sheet), −1 hides upward (top sheet). All geometry
@@ -316,10 +359,13 @@ export function DetentSheet(
       return;
     }
     animatedRef.current = true;
+    if (haptic) {
+      sheetHaptic(); // light tap on open (best-effort; see sheetHaptic)
+    }
     paint(sign * closedPx, false); // seed closed (no transition)…
     const id = globalThis.requestAnimationFrame(() => paint(openY, true)); // …then slide open
     return () => globalThis.cancelAnimationFrame(id);
-  }, [open, paint, sign, isCover]);
+  }, [open, paint, sign, isCover, haptic]);
 
   const dismiss = useCallback((): void => {
     paint(signRef.current * geomRef.current.closedPx, true);
