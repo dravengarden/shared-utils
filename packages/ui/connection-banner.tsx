@@ -175,6 +175,15 @@ export function createConnectionStore(opts: ConnectionStoreOptions): ConnectionS
       outageSurfaced = true;
       setBanner({ kind: "down" });
     }
+    // Probe the build on EVERY drop, not just on a successful reconnect. A deploy
+    // restarts the server, which is often WHY we just disconnected — and if the WS
+    // reconnect then wedges, connectionReady (the only other probe trigger besides
+    // tab-foreground) never fires, so the new build would otherwise stay invisible
+    // and the tab sits on "reconnecting…" forever. Probing here means: once the
+    // server is back as a new build, the next drop detects it → update banner →
+    // auto-reload onto the fresh bundle. The fetch just fails (no-op) while the
+    // server is still down mid-restart.
+    void probeVersion();
     return Math.min(reconnectBackoffMaxMs, 1000 * 2 ** Math.max(0, attempts - 1));
   }
 
