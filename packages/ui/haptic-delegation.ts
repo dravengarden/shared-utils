@@ -51,6 +51,36 @@ function now(): number {
 // Bail on form fields (their cursor isn't a tap action). This is what makes custom
 // expanders (a "Reading font" summary, a "N Drafts" header) buzz with no per-site
 // wiring.
+// Tapping into a text field to start typing is a deliberate "enter input" gesture
+// that deserves a tap. Covers <textarea>, text-like <input>, contenteditable, and
+// CodeMirror (.cm-editor). Non-text inputs (checkbox/radio) are excluded — those
+// flip via the change handler. Fires on the pointerdown, i.e. the tap, not on
+// programmatic focus.
+const TEXT_INPUT_TYPES = new Set([
+  "",
+  "text",
+  "search",
+  "email",
+  "url",
+  "tel",
+  "password",
+  "number",
+]);
+
+function isTextEntry(el: Element): boolean {
+  const node = el.closest("input, textarea, [contenteditable], .cm-editor");
+  if (node === null) {
+    return false;
+  }
+  if (node instanceof HTMLTextAreaElement) {
+    return true;
+  }
+  if (node instanceof HTMLInputElement) {
+    return TEXT_INPUT_TYPES.has(node.type);
+  }
+  return true; // contenteditable / CodeMirror
+}
+
 function isCustomClickable(el: Element): boolean {
   let node: Element | null = el;
   for (let i = 0; node !== null && i < 4; i += 1) {
@@ -81,6 +111,11 @@ function onPointerDownHaptic(e: Event): void {
   // Dialog buttons are MuiButtonBase, so THEY already buzz at press; this covers
   // the click-outside path that has no button of its own.
   if (target.closest(".MuiBackdrop-root")) {
+    haptic("light");
+    return;
+  }
+  // Tap into a text field → "entering input" tap.
+  if (isTextEntry(target)) {
     haptic("light");
     return;
   }
