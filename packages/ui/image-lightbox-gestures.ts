@@ -13,8 +13,6 @@ const DISMISS_THRESHOLD = 110;
 const SWIPE_NAV_THRESHOLD = 70;
 // Pointer travel below this (px) counts as a tap, not a drag.
 const TAP_SLOP = 8;
-const DOUBLE_TAP_MS = 300;
-const DOUBLE_TAP_SCALE = 2.5;
 
 export interface LightboxGesturesParams {
   imgRef: RefObject<HTMLImageElement | null>;
@@ -31,9 +29,11 @@ export interface LightboxGesturesParams {
 }
 
 export interface LightboxGestures {
-  onPointerDown: (e: React.PointerEvent<HTMLImageElement>) => void;
-  onPointerMove: (e: React.PointerEvent<HTMLImageElement>) => void;
-  onPointerEnd: (e: React.PointerEvent<HTMLImageElement>) => void;
+  // Bound to the OVERLAY (not the <img>), so pinch / pan / tap work over the
+  // whole backdrop, not just on the image itself.
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerEnd: (e: React.PointerEvent<HTMLDivElement>) => void;
   /** Step zoom toward the viewport centre (the dock +/− buttons). */
   zoomBy: (factor: number) => void;
 }
@@ -57,7 +57,6 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     moved: 0,
     pinchDist: 0,
     pinchScale: 1,
-    lastTapTime: 0,
   });
 
   const applyTransform = useCallback((animate = false) => {
@@ -134,21 +133,22 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     }
   }, [src, reset]);
 
-  // Wheel zoom (passive:false so we can preventDefault the page scroll).
+  // Wheel zoom (passive:false so we can preventDefault the page scroll). On the
+  // OVERLAY so the wheel zooms from anywhere over the backdrop, not just the img.
   useEffect(() => {
-    const img = imgRef.current;
-    if (!img || !open) {
+    const overlay = overlayRef.current;
+    if (!overlay || !open) {
       return;
     }
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       zoomAt({ factor: e.deltaY < 0 ? 1.18 : 1 / 1.18, cx: e.clientX, cy: e.clientY });
     };
-    img.addEventListener("wheel", onWheel, { passive: false });
+    overlay.addEventListener("wheel", onWheel, { passive: false });
     return () => {
-      img.removeEventListener("wheel", onWheel);
+      overlay.removeEventListener("wheel", onWheel);
     };
-  }, [imgRef, open, src, zoomAt]);
+  }, [overlayRef, open, src, zoomAt]);
 
   // Clear any pending settle timer on unmount.
   useEffect(() => () => {
@@ -157,7 +157,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     }
   }, []);
 
-  const onPointerDown = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const st = g.current;
@@ -176,7 +176,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     }
   }, []);
 
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!pointers.current.has(e.pointerId)) {
       return;
     }
@@ -215,7 +215,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     }
   }, [zoomAt, applyTransform, setBackdrop]);
 
-  const onPointerEnd = useCallback((e: React.PointerEvent<HTMLImageElement>) => {
+  const onPointerEnd = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size > 0) {
       return; // still pinching
@@ -246,18 +246,13 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     }
 
     if (st.moved < TAP_SLOP) {
-      // Tap: double-tap toggles zoom; a lone tap on the image is ignored
-      // (backdrop taps close — see the overlay handler).
-      const now = Date.now();
-      if (now - st.lastTapTime < DOUBLE_TAP_MS) {
-        st.lastTapTime = 0;
-        if (tf.current.scale > 1) {
-          reset(true);
-        } else {
-          zoomAt({ factor: DOUBLE_TAP_SCALE, cx: e.clientX, cy: e.clientY, animate: true });
-        }
+      // Tap ANYWHERE (image or backdrop): zoom OUT if currently zoomed in, else
+      // dismiss. Zoom-IN is covered by pinch (anywhere now) + the dock ± buttons,
+      // so a lone tap is unambiguously "I'm done" — matching the iOS Photos feel.
+      if (tf.current.scale > 1) {
+        reset(true);
       } else {
-        st.lastTapTime = now;
+        onClose();
       }
       return;
     }
@@ -266,7 +261,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     if (tf.current.scale <= 1) {
       reset(true);
     }
-  }, [onClose, reset, zoomAt, canPrev, canNext, goPrev, goNext]);
+  }, [onClose, reset, canPrev, canNext, goPrev, goNext]);
 
   return { onPointerDown, onPointerMove, onPointerEnd, zoomBy };
 }

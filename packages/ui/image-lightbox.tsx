@@ -1,13 +1,18 @@
 // ImageLightbox — a fullscreen image gallery with zoom + pan, driven by pointer
 // events so one code path serves mouse, touch, and pen:
 //
-//   - wheel / pinch          → zoom toward the cursor / pinch midpoint
-//   - double click / tap     → toggle between fit and a 2.5x zoom
+//   - wheel / pinch          → zoom toward the cursor / pinch midpoint (ANYWHERE
+//                              over the backdrop, not just on the image)
+//   - tap (image or backdrop)→ zoom OUT if zoomed in, else close
 //   - drag (zoomed in)       → pan
 //   - drag sideways (at fit) → previous / next image
 //   - drag down (at fit)     → swipe-to-dismiss, backdrop fades with distance
 //   - ← / → arrows           → previous / next image
-//   - backdrop tap / Esc / ✕ → close
+//   - Esc / ✕                → close
+//
+// Pointer events are bound to the OVERLAY (not the <img>), so every gesture
+// works over the whole near-black backdrop; the dock bar stops propagation so a
+// control tap isn't read as a dismiss.
 //
 // The gesture machinery lives in ./image-lightbox-gestures (imperative refs
 // written straight to the DOM, no React re-render per frame); this file is the
@@ -126,14 +131,6 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
     };
   }, [open, onClose, goPrev, goNext]);
 
-  // Tapping the black backdrop closes. Guard on the target being the overlay
-  // itself so taps on the image (and on the dock bar in front) don't count.
-  const onBackdropClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === overlayRef.current) {
-      onClose();
-    }
-  }, [onClose]);
-
   if (!open || index === null || current === undefined) {
     return null;
   }
@@ -141,7 +138,10 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
   return createPortal(
     <Box
       ref={overlayRef}
-      onClick={onBackdropClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
       sx={{
         position: "fixed",
         inset: 0,
@@ -165,10 +165,6 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
         src={current.src}
         alt={current.alt}
         draggable={false}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerEnd}
-        onPointerCancel={onPointerEnd}
         style={{
           maxWidth: "100%",
           maxHeight: "100%",
@@ -195,12 +191,18 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
         /* One bottom dock holds every control, within the thumb's reach on a
           phone (and a single obvious cluster on desktop). Order mirrors how a
           hand sweeps the arc: navigate · zoom · close, split by hairlines so a
-          reach for "next" doesn't fat-finger "close". Tapping the black backdrop
-          also dismisses (see onBackdropClick); Close, Esc, and swipe-down work
-          too. The dock is click-through except on the bar itself, so a tap
-          beside it falls to the image. */
+          reach for "next" doesn't fat-finger "close". A tap anywhere off the bar
+          (image or backdrop) dismisses; Close, Esc, and swipe-down work too. The
+          dock stops pointer propagation so a control tap isn't read as a tap-to-
+          dismiss. */
       }
-      <div style={dockStyle}>
+      <div
+        style={dockStyle}
+        // Isolate the control bar from the overlay's pointer gestures — otherwise
+        // a tap on a dock button would register as a backdrop tap and dismiss.
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
         {current.alt ? <div style={captionStyle}>{current.alt}</div> : null}
         <div style={barStyle}>
           {images.length > 1
