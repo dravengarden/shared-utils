@@ -27,12 +27,11 @@ export interface SettingsSheetProps {
   /** Widen the desktop/tablet dialog for content-rich settings (see
    *  {@link BottomSheet}'s `wide`). No effect on the mobile sheet. */
   readonly wide?: boolean;
-  /** Flavour the MOBILE surface as a near-full-screen **frosted-glass cover**
-   *  sheet (微信读书 / iOS pageSheet feel, the page diffuses through the glass)
-   *  instead of the default content-height sheet. No effect on desktop — that is
-   *  always a centered dialog (a full-screen momentum sheet reads wrong on a wide
-   *  pointer screen). Opt-in. */
-  readonly cover?: boolean;
+  /** Give the MOBILE sheet the translucent **frosted-glass** material (the same
+   *  磨砂玻璃 surface cowboy uses house-wide via its `Sheet` wrapper) instead of
+   *  the default solid `background.paper`. Content-height, not a full-screen
+   *  cover. No effect on desktop — that is always a centered dialog. Opt-in. */
+  readonly frosted?: boolean;
 }
 
 /**
@@ -40,7 +39,7 @@ export interface SettingsSheetProps {
  * (or any chrome); it owns its own open/close state.
  */
 export function SettingsSheet(
-  { title = "Settings", children, wide = false, cover = false }: SettingsSheetProps,
+  { title = "Settings", children, wide = false, frosted = false }: SettingsSheetProps,
 ): ReactNode {
   const [open, setOpen] = useState(false);
   const close = (): void => {
@@ -85,13 +84,11 @@ export function SettingsSheet(
       </Tooltip>
       {
         /* One responsive surface for every viewport (BottomSheet): a momentum
-          sheet on mobile — frosted full-screen when `cover` — and a centered
-          dialog on desktop, with safe-area padding + status-bar dimming handled
-          inside. `cover` only flavours the MOBILE sheet; routing it through
-          BottomSheet (not a bare, mobile-only DetentSheet) is what keeps the
-          desktop a dialog instead of a full-screen sheet on a wide screen. */
+          sheet on mobile — translucent frosted glass when `frosted` — and a
+          centered dialog on desktop, with safe-area padding + status-bar dimming
+          handled inside. `frosted` only flavours the MOBILE sheet. */
       }
-      <BottomSheet open={open} onClose={close} title={title} wide={wide} cover={cover}>
+      <BottomSheet open={open} onClose={close} title={title} wide={wide} frosted={frosted}>
         {body}
       </BottomSheet>
     </>
