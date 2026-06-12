@@ -47,7 +47,15 @@ export function SettingsSheet(
   const close = (): void => {
     setOpen(false);
   };
-  const body = <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>{children}</Box>;
+  // The cover path renders straight into DetentSheet, which imposes NO side
+  // gutter (so edge-to-edge lists/charts work), so the cover body carries its own
+  // px:2 — the same gutter BottomSheet already wraps the non-cover path in (hence
+  // px only when `cover`, else the non-cover body would be double-padded).
+  const body = (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, ...(cover ? { px: 2 } : {}) }}>
+      {children}
+    </Box>
+  );
 
   return (
     <>
@@ -85,19 +93,31 @@ export function SettingsSheet(
             cover
             ariaLabel={title}
             header={
-              <Box
-                sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, minWidth: 0 }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
-                <IconButton
-                  aria-label="Close"
-                  size="small"
-                  onClick={close}
-                  onPointerDown={(e) => e.stopPropagation()}
+              // px:2 to match the body gutter — DetentSheet's header strip is
+              // edge-to-edge, so the title + close ✕ would otherwise hug the screen.
+
+
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flex: 1,
+                    minWidth: 0,
+                    px: 2,
+                  }}
                 >
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
+                  <IconButton
+                    aria-label="Close"
+                    size="small"
+                    onClick={close}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+
             }
           >
             {body}
