@@ -11,8 +11,16 @@ const MAX_SCALE = 6;
 const DISMISS_THRESHOLD = 110;
 // Horizontal drag (at 1x) past this many px flips to the prev/next image.
 const SWIPE_NAV_THRESHOLD = 70;
-// Pointer travel below this (px) counts as a tap, not a drag.
+// Pointer PATH travel below this (px) counts as a tap, not a drag.
 const TAP_SLOP = 8;
+// …but a thumb tap on a phone often jitters well past 8px of total path while
+// ending within a few px of where it started. So ALSO treat a release whose NET
+// displacement (start→end) is below this as a tap — otherwise an imprecise tap
+// on the backdrop falls through to "short drag → snap back" and never closes.
+// Generous on purpose: a docs figure viewer is modal-like, so users expect a
+// backdrop tap to dismiss even when their thumb rolls a fair bit; a deliberate
+// drag (nav >70px, dismiss >110px) is still well clear of this.
+const TAP_NET_SLOP = 44;
 
 export interface LightboxGesturesParams {
   imgRef: RefObject<HTMLImageElement | null>;
@@ -245,7 +253,11 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
       }
     }
 
-    if (st.moved < TAP_SLOP) {
+    // Tap = small path OR small net finger displacement (start→end). The net
+    // check rescues jittery thumb taps that drift past TAP_SLOP yet land where
+    // they began — the common "tap the backdrop to close" gesture.
+    const netMove = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
+    if (st.moved < TAP_SLOP || netMove < TAP_NET_SLOP) {
       // Tap ANYWHERE (image or backdrop): zoom OUT if currently zoomed in, else
       // dismiss. Zoom-IN is covered by pinch (anywhere now) + the dock ± buttons,
       // so a lone tap is unambiguously "I'm done" — matching the iOS Photos feel.
