@@ -285,14 +285,18 @@ export function NavShell(props: NavShellProps): ReactNode {
       >
         <Tooltip title={sidebarShown ? "Collapse" : "Menu"}>
           {
-            /* Primary mobile nav opener — ≥40px target on touch, compact on
-              desktop. */
+            /* Primary mobile nav opener — 40px target on iPhone, compact 36 on
+              desktop. On the tablet tier (sm=600+, i.e. iPad) raise it to 48 to
+              MATCH the settings gear (see SettingsSheet): both end controls sit
+              in the display's bottom rounded corners, where a 40px target is
+              hard to hit. The gear got this bump; the symmetric left ≡ must too,
+              or the bottom-left corner stays awkward to tap on iPad. */
           }
           <IconButton
             aria-label="toggle navigation"
             onClick={onToggle}
             size="small"
-            sx={{ width: { xs: 40, lg: 36 }, height: { xs: 40, lg: 36 } }}
+            sx={{ width: { xs: 40, sm: 48, lg: 36 }, height: { xs: 40, sm: 48, lg: 36 } }}
           >
             {sidebarShown ? <ChevronLeftIcon /> : <MenuIcon />}
           </IconButton>
