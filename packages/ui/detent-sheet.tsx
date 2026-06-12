@@ -113,14 +113,20 @@ const COVER_SCRIM_MAX = 0.03;
 //     blur+saturate are then just texture on top where they work. It must be
 //     near-FULLY opaque, not merely high: high-contrast page content (black text
 //     on a light shelf) stays a visible ghost until the tint hides ~98% of it —
-//     0.9 leaves a ~10% sharp smudge on iOS (no blur to soften it), which reads
-//     as the bug NOT being fixed. Light themes reveal page colour more, so a
-//     touch higher there. (The few % translucency that remains keeps a faint
-//     frosted sheen where the blur DOES run, without the page reading through.)
+//     0.9 leaves a ~10% sharp smudge on iOS (no blur to soften it). So the cover
+//     stays HIGH, but NOT near-1: a flat 0.96 read as a dead grey panel — opacity
+//     of glass, none of the FINISH — which is the "why isn't this frosted glass?"
+//     complaint. The fix isn't more transparency (the platform caps that); it's a
+//     painted specular sheen (frostSheen, below) plus a few % of living wash so
+//     the blur shows the page is alive behind without it reading THROUGH. Net:
+//     0.93/0.95 — high enough that high-contrast page content is a soft wash not a
+//     legible ghost, low enough that the material breathes; the sheen carries the
+//     "磨砂玻璃" look that opacity alone never could. Light themes reveal page
+//     colour more, so a touch higher there.
 const FROSTED_TINT_LIGHT = 0.6;
 const FROSTED_TINT_DARK = 0.54;
-const COVER_TINT_LIGHT = 0.98;
-const COVER_TINT_DARK = 0.96;
+const COVER_TINT_LIGHT = 0.95;
+const COVER_TINT_DARK = 0.93;
 // Tint opacity for the frosted material, by theme mode and whether it's a cover.
 const frostTint = (mode: "light" | "dark", isCover: boolean): number => {
   const dark = mode === "dark";
@@ -128,6 +134,25 @@ const frostTint = (mode: "light" | "dark", isCover: boolean): number => {
     return dark ? COVER_TINT_DARK : COVER_TINT_LIGHT;
   }
   return dark ? FROSTED_TINT_DARK : FROSTED_TINT_LIGHT;
+};
+// A painted specular sheen over the frosted tint: a soft highlight brightest at
+// the sheet's inner (revealed) edge, fading down over ~110px. This is what makes
+// a milky tint read as a LIT pane of glass rather than flat paint — the detail
+// real frosted glass and iOS UIVisualEffectView both have, and the thing CSS
+// `backdrop-filter` cannot supply on iOS (it can't blur composited backdrops).
+// It depends on NOTHING behind the sheet, so it looks identical over the reader,
+// the bookshelf, or the keyboard — and costs zero legibility. Stronger in dark
+// mode, where the flat-panel deadness was worst; gentle in light, where the
+// surface is already airy. Composited OVER the alpha tint (which is the
+// `bgcolor`), so the tint still shows through the gradient's transparent tail.
+const frostSheen = (mode: "light" | "dark", isTop: boolean): string => {
+  const edge = mode === "dark" ? "rgba(255, 255, 255, 0.10)" : "rgba(255, 255, 255, 0.45)";
+  // Brightest at the sheet's INNER (revealed) edge — the top for a bottom sheet,
+  // the bottom for a top (drawer) sheet — so the highlight sits where the glass
+  // meets the page. 180deg points down (stop at top); 0deg points up (stop at
+  // bottom).
+  const dir = isTop ? "0deg" : "180deg";
+  return `linear-gradient(${dir}, ${edge} 0%, rgba(255, 255, 255, 0) 110px)`;
 };
 // The sheet is a drawer-class overlay, so it sits in MUI's DRAWER band — above
 // app chrome (banners z=10, AppBar 1100, MUI Drawer 1200) but BELOW the modal
@@ -673,6 +698,9 @@ export function DetentSheet(
               // frostTint / COVER_TINT_*). The blur+saturate carry the "glass"
               // feel on top either way.
               bgcolor: (t) => alpha(t.palette.background.default, frostTint(t.palette.mode, isCover)),
+              // Specular sheen painted OVER the tint so the milky surface reads as
+              // a lit pane of glass, not flat paint (overrides the `none` above).
+              backgroundImage: (t) => frostSheen(t.palette.mode, isTop),
               backdropFilter: "blur(30px) saturate(200%)",
               WebkitBackdropFilter: "blur(30px) saturate(200%)",
             }
