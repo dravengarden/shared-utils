@@ -169,7 +169,11 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
         position: "fixed",
         inset: 0,
         zIndex: 2000,
-        backgroundColor: "rgba(0, 0, 0, 0.92)",
+        // Fully opaque: a 0.92 backdrop let the dimmed page text bleed through
+        // and made zoomed diagrams (esp. self-themed mermaid on a near-clear
+        // plate) hard to read. The fade-in animates opacity 0→1, so the solid
+        // colour only matters once settled.
+        backgroundColor: "#000",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
