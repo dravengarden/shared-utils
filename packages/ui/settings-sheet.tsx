@@ -27,11 +27,11 @@ export interface SettingsSheetProps {
   /** Widen the desktop/tablet dialog for content-rich settings (see
    *  {@link BottomSheet}'s `wide`). No effect on the mobile sheet. */
   readonly wide?: boolean;
-  /** Give the MOBILE sheet the translucent **frosted-glass** material (the same
-   *  磨砂玻璃 surface cowboy uses house-wide via its `Sheet` wrapper) instead of
-   *  the default solid `background.paper`. Content-height, not a full-screen
-   *  cover. No effect on desktop — that is always a centered dialog. Opt-in. */
-  readonly frosted?: boolean;
+  /** Give the MOBILE sheet the full-screen **frosted-glass cover** (the same
+   *  surface cowboy's settings use: `<Sheet cover>`) — a near-opaque 磨砂玻璃
+   *  material over an opaque backdrop, so the page never bleeds through. No
+   *  effect on desktop — that is always a centered dialog. Opt-in. */
+  readonly cover?: boolean;
 }
 
 /**
@@ -39,7 +39,7 @@ export interface SettingsSheetProps {
  * (or any chrome); it owns its own open/close state.
  */
 export function SettingsSheet(
-  { title = "Settings", children, wide = false, frosted = false }: SettingsSheetProps,
+  { title = "Settings", children, wide = false, cover = false }: SettingsSheetProps,
 ): ReactNode {
   const [open, setOpen] = useState(false);
   const close = (): void => {
@@ -84,11 +84,11 @@ export function SettingsSheet(
       </Tooltip>
       {
         /* One responsive surface for every viewport (BottomSheet): a momentum
-          sheet on mobile — translucent frosted glass when `frosted` — and a
+          sheet on mobile — full-screen frosted-glass cover when `cover` — and a
           centered dialog on desktop, with safe-area padding + status-bar dimming
-          handled inside. `frosted` only flavours the MOBILE sheet. */
+          handled inside. `cover` only flavours the MOBILE sheet. */
       }
-      <BottomSheet open={open} onClose={close} title={title} wide={wide} frosted={frosted}>
+      <BottomSheet open={open} onClose={close} title={title} wide={wide} cover={cover}>
         {body}
       </BottomSheet>
     </>

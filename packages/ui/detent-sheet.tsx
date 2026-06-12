@@ -604,6 +604,34 @@ export function DetentSheet(
         sx={{ position: "fixed", inset: 0, bgcolor: "common.black", zIndex: z, opacity: 0, touchAction: "none" }}
       />
       {
+        /* Cover backdrop: an OPAQUE background-coloured layer that fully hides the
+          page behind a full-screen cover, so the frosted sheet's blur+saturate
+          sample THIS smooth surface — not the page. That's the whole trick behind
+          the clean "磨砂玻璃" cover: cowboy looks like lit glass because its
+          backdrop happens to be its own flat dark `background.default`; over a
+          dense, high-contrast page (liveview's reader) the same material bleeds
+          SHARP text, because iOS won't blur the composited page. An opaque
+          backdrop makes EVERY cover sample a uniform surface, so it reads as
+          uniform glass and never bleeds — independent of whether iOS blurs.
+          Cover-only (a content sheet shows a dimmed page strip by design). Fades
+          in so the page doesn't pop. */
+      }
+      {isCover && (
+        <Box
+          aria-hidden
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: z,
+            bgcolor: "background.default",
+            pointerEvents: "none",
+            "@keyframes cover-bg-in": { from: { opacity: 0 }, to: { opacity: 1 } },
+            animation: "cover-bg-in 0.2s ease",
+            "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+          }}
+        />
+      )}
+      {
         /* Keyboard skirt (cover only): a frosted band filling the keyboard-occupied
           area BEHIND the on-screen keyboard. The cover ends at the keyboard's top
           (bottom:--kb-inset), so the keyboard's rounded top corners + the empty
