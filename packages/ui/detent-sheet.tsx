@@ -101,6 +101,29 @@ const FROSTED_SCRIM_MAX = 0.22;
 // Near-zero keeps the whole sheet at the page's own brightness, so the top blends
 // into the (bg) status bar and the chat reads brightly through the glass.
 const COVER_SCRIM_MAX = 0.03;
+// Frosted surface tint opacity (composited UNDER the blur+saturate). Two very
+// different needs share the same material, so they get different tints:
+//   • thin `frosted` sheet  → see-through (you don't read a form THROUGH it).
+//   • full-screen `cover`   → a primary READING surface, so it must stay legible
+//     even when the blur does nothing. On iOS, backdrop-filter does NOT blur
+//     separately-composited backdrop content (cards/images promoted to their own
+//     layer punch through SHARP), so a thin cover tint over a failed blur leaves
+//     the page fully legible under the sheet's own content — the reported
+//     bleed-through bug. Keep the cover tint near-opaque so the tint ALONE
+//     occludes the page; the blur+saturate are then just texture on top where
+//     they work. Light themes reveal page colour more, so a touch higher there.
+const FROSTED_TINT_LIGHT = 0.6;
+const FROSTED_TINT_DARK = 0.54;
+const COVER_TINT_LIGHT = 0.9;
+const COVER_TINT_DARK = 0.85;
+// Tint opacity for the frosted material, by theme mode and whether it's a cover.
+const frostTint = (mode: "light" | "dark", isCover: boolean): number => {
+  const dark = mode === "dark";
+  if (isCover) {
+    return dark ? COVER_TINT_DARK : COVER_TINT_LIGHT;
+  }
+  return dark ? FROSTED_TINT_DARK : FROSTED_TINT_LIGHT;
+};
 // The sheet is a drawer-class overlay, so it sits in MUI's DRAWER band — above
 // app chrome (banners z=10, AppBar 1100, MUI Drawer 1200) but BELOW the modal
 // band (zIndex.modal = 1300). That ordering is load-bearing: MUI Menu / Select /
@@ -575,7 +598,9 @@ export function DetentSheet(
             height: "calc(var(--kb-inset, 0px) + 24px)",
             zIndex: z + 1,
             pointerEvents: "none",
-            bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.54 : 0.6),
+            // Skirt is cover-only → use the near-opaque cover tint so it matches
+            // the cover surface as one continuous slab (isCover is true here).
+            bgcolor: (t) => alpha(t.palette.background.default, frostTint(t.palette.mode, true)),
             backdropFilter: "blur(30px) saturate(200%)",
             WebkitBackdropFilter: "blur(30px) saturate(200%)",
           }}
@@ -637,12 +662,12 @@ export function DetentSheet(
           backgroundImage: "none",
           ...(useFrost
             ? {
-              // Thinner milky tint (was .72/.76) so the blurred page reads THROUGH
-              // the glass — a real translucent-frosted look instead of a near-solid
-              // panel. The blur+saturate carry the "glass" feel; the tint is kept
-              // high enough that text over it stays readable. Light keeps a touch
-              // more tint than dark (light themes show the page colours more).
-              bgcolor: (t) => alpha(t.palette.background.default, t.palette.mode === "dark" ? 0.54 : 0.6),
+              // Milky tint over a heavy blur+saturate. A thin `frosted` sheet
+              // stays see-through; a full-screen `cover` is near-opaque so it
+              // reads as a surface even where the blur fails to occlude (see
+              // frostTint / COVER_TINT_*). The blur+saturate carry the "glass"
+              // feel on top either way.
+              bgcolor: (t) => alpha(t.palette.background.default, frostTint(t.palette.mode, isCover)),
               backdropFilter: "blur(30px) saturate(200%)",
               WebkitBackdropFilter: "blur(30px) saturate(200%)",
             }
