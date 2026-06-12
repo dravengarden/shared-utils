@@ -13,12 +13,10 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
-import CloseIcon from "@mui/icons-material/Close";
 import { Box, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
 
 import { BottomSheet } from "./bottom-sheet.tsx";
-import { DetentSheet } from "./detent-sheet.tsx";
 import type { ThemeChoice } from "./theme-types.ts";
 
 export interface SettingsSheetProps {
@@ -29,10 +27,11 @@ export interface SettingsSheetProps {
   /** Widen the desktop/tablet dialog for content-rich settings (see
    *  {@link BottomSheet}'s `wide`). No effect on the mobile sheet. */
   readonly wide?: boolean;
-  /** Render the settings in a near-full-screen **frosted-glass cover** sheet
-   *  (the {@link DetentSheet} `cover` variant — 微信读书 / iOS pageSheet feel,
-   *  the page diffuses through the glass) instead of the default solid
-   *  BottomSheet. Opt-in so apps that want the lighter sheet are unchanged. */
+  /** Flavour the MOBILE surface as a near-full-screen **frosted-glass cover**
+   *  sheet (微信读书 / iOS pageSheet feel, the page diffuses through the glass)
+   *  instead of the default content-height sheet. No effect on desktop — that is
+   *  always a centered dialog (a full-screen momentum sheet reads wrong on a wide
+   *  pointer screen). Opt-in. */
   readonly cover?: boolean;
 }
 
@@ -47,12 +46,11 @@ export function SettingsSheet(
   const close = (): void => {
     setOpen(false);
   };
-  // The cover path renders straight into DetentSheet, which imposes NO side
-  // gutter (so edge-to-edge lists/charts work), so the cover body carries its own
-  // px:2 — the same gutter BottomSheet already wraps the non-cover path in (hence
-  // px only when `cover`, else the non-cover body would be double-padded).
+  // BottomSheet wraps the body in its own px:2 gutter on every surface (the
+  // mobile sheet AND the desktop dialog), so the body here is just the gap'd
+  // column — no per-variant padding.
   const body = (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, ...(cover ? { px: 2 } : {}) }}>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {children}
     </Box>
   );
@@ -85,54 +83,17 @@ export function SettingsSheet(
           <SettingsIcon sx={{ fontSize: "1.5rem" }} />
         </IconButton>
       </Tooltip>
-      {cover
-        ? (
-          /* Frosted-glass cover sheet: the page diffuses through the glass; the
-            header carries the title + a close ✕ (stopPropagation so the tap acts
-            instead of dragging the sheet). DetentSheet draws the grab handle. */
-          <DetentSheet
-            open={open}
-            onClose={close}
-            cover
-            ariaLabel={title}
-            header={
-              // px:2 to match the body gutter — DetentSheet's header strip is
-              // edge-to-edge, so the title + close ✕ would otherwise hug the screen.
-
-
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    flex: 1,
-                    minWidth: 0,
-                    px: 2,
-                  }}
-                >
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
-                  <IconButton
-                    aria-label="Close"
-                    size="small"
-                    onClick={close}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  >
-                    <CloseIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-
-            }
-          >
-            {body}
-          </DetentSheet>
-        )
-        : (
-          /* The shared BottomSheet owns the responsive surface (drag-resizable
-            sheet on mobile, dialog on desktop) + safe-area padding. */
-          <BottomSheet open={open} onClose={close} title={title} wide={wide}>
-            {body}
-          </BottomSheet>
-        )}
+      {
+        /* One responsive surface for every viewport (BottomSheet): a momentum
+          sheet on mobile — frosted full-screen when `cover` — and a centered
+          dialog on desktop, with safe-area padding + status-bar dimming handled
+          inside. `cover` only flavours the MOBILE sheet; routing it through
+          BottomSheet (not a bare, mobile-only DetentSheet) is what keeps the
+          desktop a dialog instead of a full-screen sheet on a wide screen. */
+      }
+      <BottomSheet open={open} onClose={close} title={title} wide={wide} cover={cover}>
+        {body}
+      </BottomSheet>
     </>
   );
 }
