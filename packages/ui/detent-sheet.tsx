@@ -113,20 +113,19 @@ const COVER_SCRIM_MAX = 0.03;
 //     blur+saturate are then just texture on top where they work. It must be
 //     near-FULLY opaque, not merely high: high-contrast page content (black text
 //     on a light shelf) stays a visible ghost until the tint hides ~98% of it —
-//     0.9 leaves a ~10% sharp smudge on iOS (no blur to soften it). So the cover
-//     stays HIGH, but NOT near-1: a flat 0.96 read as a dead grey panel — opacity
-//     of glass, none of the FINISH — which is the "why isn't this frosted glass?"
-//     complaint. The fix isn't more transparency (the platform caps that); it's a
-//     painted specular sheen (frostSheen, below) plus a few % of living wash so
-//     the blur shows the page is alive behind without it reading THROUGH. Net:
-//     0.93/0.95 — high enough that high-contrast page content is a soft wash not a
-//     legible ghost, low enough that the material breathes; the sheen carries the
-//     "磨砂玻璃" look that opacity alone never could. Light themes reveal page
-//     colour more, so a touch higher there.
+//     0.9 leaves a ~10% sharp smudge on iOS (no blur to soften it). RE-LEARNED
+//     2026-06-13: dropping the cover to 0.93/0.95 to "let the glass breathe" did
+//     NOT read as frosted glass — over the composited reader iOS blurs nothing,
+//     so the 5-7% became SHARP page text bleeding through (the exact lv-v95 bug,
+//     not a soft wash). The platform CANNOT give see-through-and-blurred here, so
+//     transparency is the wrong lever: the cover stays near-opaque (no bleed) and
+//     the glass FEEL comes from the painted sheen (frostSheen) on top, not from
+//     seeing the page. Back to 0.98/0.96. Light themes reveal page colour more,
+//     so a touch higher there.
 const FROSTED_TINT_LIGHT = 0.6;
 const FROSTED_TINT_DARK = 0.54;
-const COVER_TINT_LIGHT = 0.95;
-const COVER_TINT_DARK = 0.93;
+const COVER_TINT_LIGHT = 0.98;
+const COVER_TINT_DARK = 0.96;
 // Tint opacity for the frosted material, by theme mode and whether it's a cover.
 const frostTint = (mode: "light" | "dark", isCover: boolean): number => {
   const dark = mode === "dark";
