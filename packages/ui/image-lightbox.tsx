@@ -40,6 +40,16 @@ import { haptic as fireHaptic } from "./haptics.ts";
 export interface GalleryImage {
   src: string;
   alt: string;
+  /**
+   * The image is already theme-native — it was rendered/snapshotted for the
+   * ACTIVE light/dark mode (e.g. a mermaid SVG the host re-renders on every
+   * theme toggle). Such a figure must NOT get the dark-mode invert the plate
+   * applies to fixed-colour line art (that would double-correct it — an
+   * already-dark diagram flips back to light); the lightbox instead backs it
+   * with a mode-matched plate (a subtle dark card in dark mode). Default false =
+   * the fixed-colour behaviour (white plate, inverted in dark mode).
+   */
+  themed?: boolean;
 }
 
 export interface ImageLightboxProps {
@@ -62,13 +72,14 @@ export interface ImageLightboxProps {
 
 export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | null {
   const { images, index, onIndex, onClose, plate = true } = props;
-  // In dark mode a plated figure (white-bg diagram / line art) goes dark-native
-  // — same invert + hue-rotate the in-page figure plate uses — so it reads
-  // identically enlarged as it does inline, instead of glaring white. Photos
-  // (plate=false) are never touched. (useTheme runs unconditionally — never
-  // gate a hook behind `&&`.)
+  // In dark mode a plated FIXED-colour figure (white-bg diagram / line art) goes
+  // dark-native via invert + hue-rotate — the same the in-page figure plate uses
+  // — so it reads identically enlarged instead of glaring white. A self-themed
+  // image (themed:true, e.g. a mermaid SVG re-rendered per mode) is already right
+  // for the mode and is NEVER inverted (see the per-image block below). Photos
+  // (plate=false) are never touched. (useTheme runs unconditionally — never gate
+  // a hook behind `&&`.)
   const isDarkMode = useTheme().palette.mode === "dark";
-  const darkPlate = plate && isDarkMode;
   const overlayRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -136,6 +147,17 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
     return null;
   }
 
+  // Per-image plate: a self-themed figure (mermaid) is already correct for the
+  // mode, so it's never inverted and gets a mode-matched plate (a subtle dark
+  // card in dark mode, white in light); a fixed-colour figure keeps the white
+  // plate + dark-mode invert.
+  const selfThemed = current.themed === true;
+  const invertPlate = plate && !selfThemed && isDarkMode;
+  let plateBg = "transparent";
+  if (plate) {
+    plateBg = selfThemed && isDarkMode ? "rgba(255, 255, 255, 0.06)" : "#ffffff";
+  }
+
   return createPortal(
     <Box
       ref={overlayRef}
@@ -175,16 +197,18 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
           WebkitUserSelect: "none",
           cursor: "zoom-out",
           willChange: "transform",
-          // The white plate (see `plate` prop): docs/figures need it so white-bg
+          // The plate (see `plate` prop): docs/figures need it so white-bg
           // diagrams don't glare and transparent line art doesn't vanish on the
-          // near-black backdrop; photos/screenshots opt out.
-          backgroundColor: plate ? "#ffffff" : "transparent",
+          // near-black backdrop; photos/screenshots opt out. A self-themed figure
+          // gets a mode-matched plate (subtle dark card in dark mode).
+          backgroundColor: plateBg,
           padding: plate ? "0.5rem" : 0,
           borderRadius: "6px",
           boxSizing: "border-box",
-          // Match the in-page plate in dark mode (plate + art invert together,
-          // hues preserved), so the enlarged figure isn't a white glare.
-          filter: darkPlate ? "invert(0.9) hue-rotate(180deg)" : undefined,
+          // Fixed-colour figures invert in dark mode (plate + art together, hues
+          // preserved) to match the in-page plate; self-themed figures (mermaid)
+          // are already mode-correct and must NOT be inverted.
+          filter: invertPlate ? "invert(0.9) hue-rotate(180deg)" : undefined,
         }}
       />
 
