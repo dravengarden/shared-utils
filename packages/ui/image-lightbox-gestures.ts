@@ -21,6 +21,9 @@ const TAP_SLOP = 8;
 // backdrop tap to dismiss even when their thumb rolls a fair bit; a deliberate
 // drag (nav >70px, dismiss >110px) is still well clear of this.
 const TAP_NET_SLOP = 44;
+// A tap ON the image toggles zoom to this scale (and back to fit on the next
+// tap); a tap on the backdrop dismisses. Matches the photos-app single-tap feel.
+const TAP_ZOOM_SCALE = 2.5;
 
 export interface LightboxGesturesParams {
   imgRef: RefObject<HTMLImageElement | null>;
@@ -65,6 +68,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     moved: 0,
     pinchDist: 0,
     pinchScale: 1,
+    onImage: false,
   });
 
   const applyTransform = useCallback((animate = false) => {
@@ -175,6 +179,12 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
       st.startY = e.clientY;
       st.lastY = e.clientY;
       st.moved = 0;
+      // Did the press land on the image (vs the backdrop)? Drives tap behaviour:
+      // image → zoom toggle, backdrop → dismiss. getBoundingClientRect is the
+      // VISUAL (transformed) box, so this is correct whether fit or zoomed.
+      const ir = imgRef.current?.getBoundingClientRect();
+      st.onImage = ir !== undefined && e.clientX >= ir.left &&
+        e.clientX <= ir.right && e.clientY >= ir.top && e.clientY <= ir.bottom;
     } else if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       if (a && b) {
@@ -182,7 +192,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
         st.pinchScale = tf.current.scale;
       }
     }
-  }, []);
+  }, [imgRef]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!pointers.current.has(e.pointerId)) {
@@ -258,11 +268,16 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     // they began — the common "tap the backdrop to close" gesture.
     const netMove = Math.hypot(e.clientX - st.startX, e.clientY - st.startY);
     if (st.moved < TAP_SLOP || netMove < TAP_NET_SLOP) {
-      // Tap ANYWHERE (image or backdrop): zoom OUT if currently zoomed in, else
-      // dismiss. Zoom-IN is covered by pinch (anywhere now) + the dock ± buttons,
-      // so a lone tap is unambiguously "I'm done" — matching the iOS Photos feel.
-      if (tf.current.scale > 1) {
-        reset(true);
+      // A tap. ON the image → toggle zoom: zoom IN at the tap point, or back to
+      // fit if already zoomed (photos-app single-tap feel; pinch + dock ± still
+      // zoom too). On the BACKDROP → dismiss (the modal-style "tap outside to
+      // close"). This split is why st.onImage is captured on pointer-down.
+      if (st.onImage) {
+        if (tf.current.scale > 1) {
+          reset(true);
+        } else {
+          zoomAt({ factor: TAP_ZOOM_SCALE, cx: e.clientX, cy: e.clientY, animate: true });
+        }
       } else {
         onClose();
       }
@@ -273,7 +288,7 @@ export function useLightboxGestures(params: LightboxGesturesParams): LightboxGes
     if (tf.current.scale <= 1) {
       reset(true);
     }
-  }, [onClose, reset, canPrev, canNext, goPrev, goNext]);
+  }, [onClose, reset, zoomAt, canPrev, canNext, goPrev, goNext]);
 
   return { onPointerDown, onPointerMove, onPointerEnd, zoomBy };
 }

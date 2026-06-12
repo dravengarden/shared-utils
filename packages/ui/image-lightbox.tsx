@@ -3,7 +3,8 @@
 //
 //   - wheel / pinch          → zoom toward the cursor / pinch midpoint (ANYWHERE
 //                              over the backdrop, not just on the image)
-//   - tap (image or backdrop)→ zoom OUT if zoomed in, else close
+//   - tap the image          → toggle zoom (in at the tap point, or back to fit)
+//   - tap the backdrop        → close
 //   - drag (zoomed in)       → pan
 //   - drag sideways (at fit) → previous / next image
 //   - drag down (at fit)     → swipe-to-dismiss, backdrop fades with distance
