@@ -109,13 +109,18 @@ const COVER_SCRIM_MAX = 0.03;
 //     separately-composited backdrop content (cards/images promoted to their own
 //     layer punch through SHARP), so a thin cover tint over a failed blur leaves
 //     the page fully legible under the sheet's own content — the reported
-//     bleed-through bug. Keep the cover tint near-opaque so the tint ALONE
-//     occludes the page; the blur+saturate are then just texture on top where
-//     they work. Light themes reveal page colour more, so a touch higher there.
+//     bleed-through bug. So the cover tint ALONE must occlude the page; the
+//     blur+saturate are then just texture on top where they work. It must be
+//     near-FULLY opaque, not merely high: high-contrast page content (black text
+//     on a light shelf) stays a visible ghost until the tint hides ~98% of it —
+//     0.9 leaves a ~10% sharp smudge on iOS (no blur to soften it), which reads
+//     as the bug NOT being fixed. Light themes reveal page colour more, so a
+//     touch higher there. (The few % translucency that remains keeps a faint
+//     frosted sheen where the blur DOES run, without the page reading through.)
 const FROSTED_TINT_LIGHT = 0.6;
 const FROSTED_TINT_DARK = 0.54;
-const COVER_TINT_LIGHT = 0.9;
-const COVER_TINT_DARK = 0.85;
+const COVER_TINT_LIGHT = 0.98;
+const COVER_TINT_DARK = 0.96;
 // Tint opacity for the frosted material, by theme mode and whether it's a cover.
 const frostTint = (mode: "light" | "dark", isCover: boolean): number => {
   const dark = mode === "dark";
