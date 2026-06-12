@@ -13,10 +13,12 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
+import CloseIcon from "@mui/icons-material/Close";
 import { Box, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from "@mui/material";
 import { type ReactNode, useState } from "react";
 
 import { BottomSheet } from "./bottom-sheet.tsx";
+import { DetentSheet } from "./detent-sheet.tsx";
 import type { ThemeChoice } from "./theme-types.ts";
 
 export interface SettingsSheetProps {
@@ -27,17 +29,25 @@ export interface SettingsSheetProps {
   /** Widen the desktop/tablet dialog for content-rich settings (see
    *  {@link BottomSheet}'s `wide`). No effect on the mobile sheet. */
   readonly wide?: boolean;
+  /** Render the settings in a near-full-screen **frosted-glass cover** sheet
+   *  (the {@link DetentSheet} `cover` variant — 微信读书 / iOS pageSheet feel,
+   *  the page diffuses through the glass) instead of the default solid
+   *  BottomSheet. Opt-in so apps that want the lighter sheet are unchanged. */
+  readonly cover?: boolean;
 }
 
 /**
  * The gear + responsive settings surface. Drop it into a top-bar `actions` slot
  * (or any chrome); it owns its own open/close state.
  */
-export function SettingsSheet({ title = "Settings", children, wide = false }: SettingsSheetProps): ReactNode {
+export function SettingsSheet(
+  { title = "Settings", children, wide = false, cover = false }: SettingsSheetProps,
+): ReactNode {
   const [open, setOpen] = useState(false);
   const close = (): void => {
     setOpen(false);
   };
+  const body = <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>{children}</Box>;
 
   return (
     <>
@@ -64,14 +74,42 @@ export function SettingsSheet({ title = "Settings", children, wide = false }: Se
           <SettingsIcon sx={{ fontSize: { xs: 20, sm: 24, lg: 20 } }} />
         </IconButton>
       </Tooltip>
-      {
-        /* The shared BottomSheet owns the responsive surface (drag-resizable sheet
-          on mobile, dialog on desktop) + safe-area padding; we just hand it the
-          settings rows. */
-      }
-      <BottomSheet open={open} onClose={close} title={title} wide={wide}>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>{children}</Box>
-      </BottomSheet>
+      {cover
+        ? (
+          /* Frosted-glass cover sheet: the page diffuses through the glass; the
+            header carries the title + a close ✕ (stopPropagation so the tap acts
+            instead of dragging the sheet). DetentSheet draws the grab handle. */
+          <DetentSheet
+            open={open}
+            onClose={close}
+            cover
+            ariaLabel={title}
+            header={
+              <Box
+                sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, minWidth: 0 }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>{title}</Typography>
+                <IconButton
+                  aria-label="Close"
+                  size="small"
+                  onClick={close}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            }
+          >
+            {body}
+          </DetentSheet>
+        )
+        : (
+          /* The shared BottomSheet owns the responsive surface (drag-resizable
+            sheet on mobile, dialog on desktop) + safe-area padding. */
+          <BottomSheet open={open} onClose={close} title={title} wide={wide}>
+            {body}
+          </BottomSheet>
+        )}
     </>
   );
 }
