@@ -73,13 +73,16 @@ export function SettingsSheet(
           sx={{ width: { xs: 40, sm: 48, lg: 36 }, height: { xs: 40, sm: 48, lg: 36 } }}
         >
           {
-            /* Fixed px, not `fontSize="small"` (1.25rem): the settings gear is
-              app chrome, so it must stay put when a host app scales its root
-              font-size for content. 20px == the rem default, so apps that
-              don't scale fonts see no change. Bump to 24 at sm so the icon
-              isn't lost in the larger 48px tablet button. */
+            /* `1.5rem` (the MUI default), to MATCH the ≡ nav toggle in NavShell —
+              its `MenuIcon` carries no `fontSize`, so it renders at the rem-based
+              default and grows when a host scales its root font. The gear used to
+              be FIXED px ("chrome stays put"), but that left the two end controls
+              visibly mismatched once the font was scaled up (the ≡ grew, the gear
+              didn't). Keeping both on the same rem default makes them identical at
+              every scale. 1.5rem == 24px at scale 1, so the iPad tap target stays
+              well-filled and unscaled apps see no change. */
           }
-          <SettingsIcon sx={{ fontSize: { xs: 20, sm: 24, lg: 20 } }} />
+          <SettingsIcon sx={{ fontSize: "1.5rem" }} />
         </IconButton>
       </Tooltip>
       {cover
