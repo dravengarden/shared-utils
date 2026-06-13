@@ -719,12 +719,17 @@ export function DetentSheet(
           backgroundImage: "none",
           ...(useFrost
             ? {
-              // Milky tint over a heavy blur+saturate. A thin `frosted` sheet
-              // stays see-through; a full-screen `cover` is near-opaque so it
-              // reads as a surface even where the blur fails to occlude (see
-              // frostTint / COVER_TINT_*). The blur+saturate carry the "glass"
-              // feel on top either way.
-              bgcolor: (t) => alpha(t.palette.background.default, frostTint(t.palette.mode, isCover)),
+              // A thin `frosted` sheet stays see-through (frostTint). A full-screen
+              // `cover` is a primary surface that must NEVER show the page: its own
+              // pixels are FULLY opaque (background.default, alpha 1) so it can't
+              // bleed regardless of the backdrop layer or whether iOS blurs — the
+              // glass FEEL comes from the sheen + blur+saturate on top, not from
+              // any translucency (which on iOS = sharp page text over composited
+              // content, the long-standing bug).
+              bgcolor: (t) =>
+                isCover
+                  ? t.palette.background.default
+                  : alpha(t.palette.background.default, frostTint(t.palette.mode, false)),
               // Specular sheen painted OVER the tint so the milky surface reads as
               // a lit pane of glass, not flat paint (overrides the `none` above).
               backgroundImage: (t) => frostSheen(t.palette.mode, isTop),

@@ -169,11 +169,15 @@ export function ImageLightbox(props: ImageLightboxProps): React.JSX.Element | nu
         position: "fixed",
         inset: 0,
         zIndex: 2000,
-        // Fully opaque: a 0.92 backdrop let the dimmed page text bleed through
-        // and made zoomed diagrams (esp. self-themed mermaid on a near-clear
-        // plate) hard to read. The fade-in animates opacity 0→1, so the solid
-        // colour only matters once settled.
-        backgroundColor: "#000",
+        // Frosted-dark-glass backdrop: FULLY opaque (no page text bleeds — over
+        // the composited reader iOS won't blur it away, so transparency is off
+        // the table), styled to read as a lit pane of glass rather than flat
+        // black — a near-black surface + a soft top sheen + a blur/saturate that
+        // frosts the thin edges around the grab handle / controls. Fade-in 0→1.
+        backgroundColor: "#0b0b0e",
+        backgroundImage: "radial-gradient(130% 90% at 50% 0%, rgba(255,255,255,0.06), rgba(255,255,255,0) 55%)",
+        backdropFilter: "blur(28px) saturate(160%)",
+        WebkitBackdropFilter: "blur(28px) saturate(160%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
