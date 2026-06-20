@@ -255,8 +255,13 @@ export function NavShell(props: NavShellProps): ReactNode {
           zIndex: (t) => t.zIndex.appBar,
           // Top bar owns the notch (pt only). Bottom bar is padded symmetrically
           // (see bottomPad) so its content is vertically centred and clears the
-          // home indicator.
-          pt: bottom ? bottomPad : "env(safe-area-inset-top, 0px)",
+          // home indicator — EXCEPT when a transport rides directly above it in
+          // ONE shared slab (`barTransparent`): then drop the top pad so the nav
+          // row hugs the transport instead of leaving a seam-like gap between the
+          // two control rows (the transport carries its own bottom breathing room).
+          pt: bottom
+            ? (barTransparent ? 0 : bottomPad)
+            : "env(safe-area-inset-top, 0px)",
           pb: bottom ? bottomPad : 0,
           ...(barFrosted
             ? {
