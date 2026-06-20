@@ -71,6 +71,14 @@ export interface NavShellProps {
    *  reserve space (`padding-{top,bottom}: var(--shell-bar-h)`). OFF keeps the
    *  unchanged solid-sibling bar. */
   readonly barFrosted?: boolean;
+  /** Opt-in (default OFF). Only meaningful together with `barFrosted`. Keeps the
+   *  frosted OVERLAY POSITIONING (absolute, pinned, height still published as
+   *  `--shell-bar-h`) but renders NO background and NO backdrop-filter — the bar
+   *  is fully transparent. Use this when the HOST draws ONE frosted slab behind
+   *  BOTH this bar and an adjacent surface pinned right above it (e.g. a media
+   *  transport), so the two read as a SINGLE pane of glass instead of two
+   *  separately-frosted layers that sample different content and never match. */
+  readonly barTransparent?: boolean;
   /** The main content area. */
   readonly children: ReactNode;
 }
@@ -93,6 +101,7 @@ export function NavShell(props: NavShellProps): ReactNode {
     actions,
     barPosition = "top",
     barFrosted = false,
+    barTransparent = false,
     children,
   } = props;
   const bottom = barPosition === "bottom";
@@ -264,13 +273,19 @@ export function NavShell(props: NavShellProps): ReactNode {
               left: 0,
               right: 0,
               ...(bottom ? { bottom: 0 } : { top: 0 }),
-              bgcolor: (t) =>
-                alpha(
-                  t.palette.background.default,
-                  t.palette.mode === "dark" ? 0.72 : 0.76,
-                ),
-              backdropFilter: "blur(30px) saturate(200%)",
-              WebkitBackdropFilter: "blur(30px) saturate(200%)",
+              // `barTransparent`: the HOST owns a single frosted slab behind both
+              // this bar and the surface above it, so the bar itself must add NO
+              // tint/backdrop of its own (two backdrop-filters never match — they
+              // sample different content). Keep the positioning, drop the glass.
+              ...(barTransparent ? {} : {
+                bgcolor: (t) =>
+                  alpha(
+                    t.palette.background.default,
+                    t.palette.mode === "dark" ? 0.72 : 0.76,
+                  ),
+                backdropFilter: "blur(30px) saturate(200%)",
+                WebkitBackdropFilter: "blur(30px) saturate(200%)",
+              }),
               // Top bar keeps its downward elevation shadow to mark the edge; a
               // bottom bar stays flat + borderless (the glass tint is the edge).
               boxShadow: bottom ? "none" : 3,
