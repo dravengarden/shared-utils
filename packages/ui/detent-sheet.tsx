@@ -574,6 +574,15 @@ export function DetentSheet(
         flex: isCover ? "1 1 auto" : "0 1 auto",
         minHeight: 0,
         overflowY: "auto",
+        // iOS scroll perf: this scroller is nested under the sheet root, which
+        // carries transform (translateY detent) + will-change + contain — an
+        // ancestor combo that DEMOTES a nested overflow scroller off the
+        // compositor onto the main thread, so flicking a long sheet (e.g.
+        // Settings) drops frames. Give the scroller its OWN compositing layer +
+        // momentum so iOS scrolls it async again. Touch only the scroller, never
+        // the root's animation props (those drive the slide-in).
+        WebkitOverflowScrolling: "touch",
+        transform: "translateZ(0)",
         // No horizontal padding: the sheet doesn't impose a side gutter on its
         // content, so an edge-to-edge body (a full-width list, a chart) works.
         // Consumers that want a text gutter add their own px (BottomSheet does).
@@ -715,8 +724,9 @@ export function DetentSheet(
           // elevation overlay so chrome + content are one surface. The `frosted`
           // variant swaps it for a translucent 磨砂玻璃 material (same recipe as the
           // app bars): a milky tint over a heavy blur+saturate, so the page diffuses
-          // through it. `backgroundImage:none` either way (no elevation overlay).
-          backgroundImage: "none",
+          // through it. The `none` base (drop MUI's elevation overlay) is set in
+          // each branch below so it appears exactly once; `frosted` replaces it
+          // with the specular sheen.
           ...(useFrost
             ? {
               // A thin `frosted` sheet stays see-through (frostTint). A full-screen
@@ -736,7 +746,7 @@ export function DetentSheet(
               backdropFilter: "blur(30px) saturate(200%)",
               WebkitBackdropFilter: "blur(30px) saturate(200%)",
             }
-            : { bgcolor: "background.paper" }),
+            : { bgcolor: "background.paper", backgroundImage: "none" }),
           // Round the inner (revealed) edge only — but a full-screen cover bleeds
           // to the screen edges, so it's square (rounded corners at the very top
           // would sit behind the status bar / island and just clip the glass).
