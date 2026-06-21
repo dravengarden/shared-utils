@@ -23,6 +23,7 @@ export {
   nativeAudioLoad,
   nativeAudioPause,
   nativeAudioPlay,
+  nativeAudioPrefetch,
   nativeAudioSeek,
   nativeAudioSetRate,
   nativeAudioStop,
