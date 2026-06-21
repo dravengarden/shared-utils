@@ -125,13 +125,20 @@ export function NavShell(props: NavShellProps): ReactNode {
       return;
     }
     const publish = (): void => {
-      contentEl.style.setProperty("--shell-bar-h", `${barEl.offsetHeight}px`);
+      const h = `${barEl.offsetHeight}px`;
+      contentEl.style.setProperty("--shell-bar-h", h);
+      // Also mirror onto the document root: a fixed overlay rendered OUTSIDE the
+      // content region (e.g. an app's ambient bottom strip that must sit ABOVE
+      // this bar) can't inherit the region-scoped var, so it reads the mirror.
+      // Cleared on unmount so a later view (no bar) doesn't see a stale height.
+      document.documentElement.style.setProperty("--shell-bar-h", h);
     };
     publish();
     const ro = new ResizeObserver(publish);
     ro.observe(barEl);
     return () => {
       ro.disconnect();
+      document.documentElement.style.removeProperty("--shell-bar-h");
     };
   }, [barFrosted]);
 
