@@ -13,3 +13,19 @@ export {
   type NativeNowPlaying,
   onNativeMediaCommand,
 } from "./native-media.ts";
+
+// The heavier native-AVPlayer engine (decodes natively; the web is a thin
+// remote) — for bulletproof background/lock-screen/AirPods where the web
+// `<audio>` can't hold the session. See ./native-audio.ts + ./ios/NativeAudioController.swift.
+export {
+  type NativeAudioEvent,
+  nativeAudioAvailable,
+  nativeAudioLoad,
+  nativeAudioPause,
+  nativeAudioPlay,
+  nativeAudioSeek,
+  nativeAudioSetRate,
+  nativeAudioStop,
+  type NativeAudioTrack,
+  onNativeAudioEvent,
+} from "./native-audio.ts";
