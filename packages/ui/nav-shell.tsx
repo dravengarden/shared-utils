@@ -285,18 +285,21 @@ export function NavShell(props: NavShellProps): ReactNode {
               ...(barTransparent ? {} : {
                 // Near-opaque so the reading text does NOT bleed through and
                 // clash with the bar's controls (the old 0.72/0.76 showed through
-                // on warm / low-contrast pages). saturate() dropped: its 2× boost
-                // tinted the low-saturation page peeking through, and at this
-                // opacity it bought nothing — a heavy blur still softens the
-                // sliver scrolling past the edge. Unified with every other chrome
-                // frost (status-bar strip, sync indicator, app transports).
+                // on warm / low-contrast pages).
+                //
+                // NO backdrop-filter: a blur here is a SCROLL-PERF trap. As the
+                // reader scrolls UNDER this fixed bar, a backdrop-filter must
+                // re-blur the moving content every frame — and at this opacity
+                // the blurred result is invisible anyway (the ~0.95 tint covers
+                // it), so it was pure wasted per-frame GPU work that dropped
+                // frames while scrolling. The opaque tint alone hides the page;
+                // the blur bought nothing. (Genuinely translucent chrome — the
+                // status-bar strip, small glass pucks — still needs its blur.)
                 bgcolor: (t) =>
                   alpha(
                     t.palette.background.default,
                     t.palette.mode === "dark" ? 0.94 : 0.96,
                   ),
-                backdropFilter: "blur(24px)",
-                WebkitBackdropFilter: "blur(24px)",
               }),
               // Top bar keeps its downward elevation shadow to mark the edge; a
               // bottom bar stays flat + borderless (the glass tint is the edge).
