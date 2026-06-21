@@ -252,14 +252,16 @@ export function NavShell(props: NavShellProps): ReactNode {
             xs: "max(env(safe-area-inset-right, 0px), 12px)",
             sm: "max(env(safe-area-inset-right, 0px), 20px)",
           },
-          // 48px tap-target floor for a STANDALONE bottom bar. But when a
-          // transport rides directly above it in one shared slab
-          // (barTransparent), that floor is wasted: with alignItems:center the
-          // content gets vertically centred in the 48px, leaving a gap ABOVE it
-          // (toward the transport) even though pt is already 0. Drop the floor
-          // then so the content sits flush under the transport — the bar is sized
-          // by its own controls (already ≥40px) + the home-indicator pb. (ui.md §7)
-          minHeight: bottom && barTransparent ? 0 : 48,
+          // Vertical sizing is a PURE PADDING model for the bottom bar: height =
+          // pt + content + pb, no minHeight floor. The controls are their own tap
+          // targets (IconButtons ≥40px, ui.md §7), so a bar minHeight only ever
+          // ADDED problems — with alignItems:center it centred the content in the
+          // leftover 48px and left a gap ABOVE it (toward a transport sharing the
+          // slab) even with pt:0. Dropping it makes the layout predictable and
+          // kills that gap at the root; alignItems:center stays, but now only for
+          // cross-item alignment (a 2-line title vs the icons) — no leftover space
+          // to distribute, so no gap. The TOP bar (desktop) keeps the 48px floor.
+          ...(bottom ? {} : { minHeight: 48 }),
           // Separator: a top bar floats over the content (Material elevation,
           // shadow falling down). A BOTTOM bar gets a flat 1px divider instead —
           // an upward drop-shadow there reads heavy and muddy over the reading
