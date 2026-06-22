@@ -243,10 +243,12 @@ export function createConnectionStore(opts: ConnectionStoreOptions): ConnectionS
 // Seconds the update bar counts down before reloading on its own.
 const DEFAULT_UPDATE_COUNTDOWN_SECS = 3;
 
-// MUI palette per banner kind: red outage / green recovery / blue update.
-function bannerPalette(kind: BannerKind): "error" | "success" | "info" {
+// MUI palette per banner kind: an outage is a calm WARNING (yellow), not an
+// alarm — the app stays fully usable offline and retries are unbounded, so red
+// would overstate it. Green recovery flash; blue (info) update.
+function bannerPalette(kind: BannerKind): "warning" | "success" | "info" {
   if (kind === "down") {
-    return "error";
+    return "warning";
   }
   if (kind === "reconnected") {
     return "success";
